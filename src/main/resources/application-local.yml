@@ -1,0 +1,13 @@
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/gestor}
+    username: ${DB_USER:gestor}
+    password: ${DB_PASSWORD:gestor_local}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+
+app:
+  security:
+    cookie-secure: false
