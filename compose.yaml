@@ -1,14 +1,20 @@
 services:
   postgres:
-    image: postgres:17-alpine
+    image: postgres:16-alpine
+    container_name: gestor-vendas-postgres
+    restart: unless-stopped
+
     environment:
       POSTGRES_DB: gestor
       POSTGRES_USER: gestor
       POSTGRES_PASSWORD: gestor_local
+
     ports:
-      - "5432:5432"
+      - "5433:5432"
+
     volumes:
-      - gestor_postgres:/var/lib/postgresql/data
+      - gestor_vendas_postgres_data:/var/lib/postgresql/data
+
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U gestor -d gestor"]
       interval: 5s
@@ -16,4 +22,4 @@ services:
       retries: 10
 
 volumes:
-  gestor_postgres:
+  gestor_vendas_postgres_data:

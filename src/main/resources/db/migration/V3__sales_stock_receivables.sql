@@ -1,156 +1,142 @@
-create table compras (
-  id uuid primary key,
-  empresa_id uuid not null references empresas(id),
-  data_compra timestamptz not null default now(),
-  observacoes varchar(1000),
-  status varchar(20) not null default 'ATIVA',
-  created_by uuid not null references usuarios(id),
-  cancelled_at timestamptz,
-  cancelled_by uuid references usuarios(id),
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  constraint uq_compras_id_empresa unique (id, empresa_id),
-  constraint ck_compras_status check (status in ('ATIVA','CANCELADA'))
+CREATE TABLE public.compras (
+                                id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                                fornecedor varchar(150),
+                                data_compra date NOT NULL DEFAULT CURRENT_DATE,
+                                total numeric(14,2) NOT NULL DEFAULT 0,
+                                observacoes text,
+                                created_at timestamptz NOT NULL DEFAULT now(),
+                                empresa_id uuid NOT NULL REFERENCES public.empresas(id) ON DELETE RESTRICT
 );
-create index idx_compras_empresa_data on compras (empresa_id, data_compra desc);
+CREATE INDEX idx_compras_empresa_data ON public.compras(empresa_id, data_compra DESC);
 
-create table compra_itens (
-  id uuid primary key,
-  empresa_id uuid not null references empresas(id),
-  compra_id uuid not null,
-  produto_id uuid not null,
-  quantidade numeric(14,3) not null,
-  custo_unitario numeric(14,2) not null,
-  movimenta_estoque boolean not null,
-  created_at timestamptz not null default now(),
-  constraint ck_compra_itens_quantidade check (quantidade > 0),
-  constraint ck_compra_itens_custo check (custo_unitario >= 0),
-  constraint fk_compra_itens_compra_empresa foreign key (compra_id, empresa_id)
-    references compras(id, empresa_id),
-  constraint fk_compra_itens_produto_empresa foreign key (produto_id, empresa_id)
-    references produtos(id, empresa_id)
+CREATE TABLE public.compra_itens (
+                                     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                                     compra_id uuid NOT NULL REFERENCES public.compras(id) ON DELETE CASCADE,
+                                     produto_id uuid NOT NULL REFERENCES public.produtos(id),
+                                     quantidade numeric(14,3) NOT NULL,
+                                     custo_unitario numeric(14,2) NOT NULL,
+                                     total numeric(14,2) NOT NULL,
+                                     empresa_id uuid NOT NULL REFERENCES public.empresas(id) ON DELETE RESTRICT,
+                                     CONSTRAINT compra_itens_quantidade_check CHECK (quantidade > 0),
+                                     CONSTRAINT compra_itens_custo_check CHECK (custo_unitario >= 0),
+                                     CONSTRAINT compra_itens_total_check CHECK (total >= 0)
 );
-create index idx_compra_itens_compra on compra_itens (empresa_id, compra_id);
+CREATE INDEX idx_compra_itens_compra ON public.compra_itens(empresa_id, compra_id);
 
-create table movimentacoes_estoque (
-  id uuid primary key,
-  empresa_id uuid not null references empresas(id),
-  produto_id uuid not null,
-  tipo varchar(30) not null,
-  quantidade_delta numeric(14,3) not null,
-  saldo_apos numeric(14,3) not null,
-  referencia_tipo varchar(30),
-  referencia_id uuid,
-  motivo varchar(500),
-  created_by uuid not null references usuarios(id),
-  created_at timestamptz not null default now(),
-  constraint ck_mov_estoque_tipo check (tipo in ('COMPRA','COMPRA_REVERSAO','VENDA','VENDA_REVERSAO','AJUSTE_ENTRADA','AJUSTE_SAIDA')),
-  constraint ck_mov_estoque_saldo check (saldo_apos >= 0),
-  constraint ck_mov_estoque_delta check (quantidade_delta <> 0),
-  constraint fk_mov_estoque_produto_empresa foreign key (produto_id, empresa_id)
-    references produtos(id, empresa_id)
-);
-create index idx_mov_estoque_empresa_produto_data on movimentacoes_estoque (empresa_id, produto_id, created_at desc);
-
-create table venda_sequencias (
-  empresa_id uuid primary key references empresas(id),
-  ultimo_numero bigint not null default 0,
-  constraint ck_venda_sequencias_numero check (ultimo_numero >= 0)
+CREATE TABLE api_internal.compra_estados (
+                                             compra_id uuid PRIMARY KEY REFERENCES public.compras(id) ON DELETE CASCADE,
+                                             status varchar(20) NOT NULL DEFAULT 'ATIVA',
+                                             cancelled_at timestamptz,
+                                             cancelled_by uuid REFERENCES api_internal.usuarios(id),
+                                             CONSTRAINT compra_estados_status_check CHECK (status IN ('ATIVA','CANCELADA'))
 );
 
-create table vendas (
-  id uuid primary key,
-  empresa_id uuid not null references empresas(id),
-  numero bigint not null,
-  cliente_id uuid,
-  data_venda timestamptz not null default now(),
-  forma_pagamento varchar(20) not null,
-  status varchar(20) not null default 'ATIVA',
-  total numeric(14,2) not null,
-  custo_total numeric(14,2) not null,
-  lucro_total numeric(14,2) not null,
-  created_by uuid not null references usuarios(id),
-  cancel_reason varchar(500),
-  cancelled_at timestamptz,
-  cancelled_by uuid references usuarios(id),
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  constraint uq_vendas_id_empresa unique (id, empresa_id),
-  constraint uq_vendas_empresa_numero unique (empresa_id, numero),
-  constraint ck_vendas_pagamento check (forma_pagamento in ('AVISTA','PRAZO')),
-  constraint ck_vendas_status check (status in ('ATIVA','CANCELADA')),
-  constraint ck_vendas_total check (total >= 0),
-  constraint ck_vendas_custo check (custo_total >= 0),
-  constraint fk_vendas_cliente_empresa foreign key (cliente_id, empresa_id)
-    references clientes(id, empresa_id)
+CREATE TABLE api_internal.movimentacoes_estoque (
+                                                    id uuid PRIMARY KEY,
+                                                    empresa_id uuid NOT NULL REFERENCES public.empresas(id),
+                                                    produto_id uuid NOT NULL REFERENCES public.produtos(id),
+                                                    tipo varchar(30) NOT NULL,
+                                                    quantidade_delta numeric(14,3) NOT NULL,
+                                                    saldo_apos numeric(14,3) NOT NULL,
+                                                    referencia_tipo varchar(30),
+                                                    referencia_id uuid,
+                                                    motivo varchar(500),
+                                                    created_by uuid NOT NULL REFERENCES api_internal.usuarios(id),
+                                                    created_at timestamptz NOT NULL DEFAULT now(),
+                                                    CONSTRAINT ck_mov_estoque_tipo
+                                                        CHECK (tipo IN ('COMPRA','COMPRA_REVERSAO','VENDA','VENDA_REVERSAO','AJUSTE_ENTRADA','AJUSTE_SAIDA')),
+                                                    CONSTRAINT ck_mov_estoque_saldo CHECK (saldo_apos >= 0),
+                                                    CONSTRAINT ck_mov_estoque_delta CHECK (quantidade_delta <> 0)
 );
-create index idx_vendas_empresa_data on vendas (empresa_id, data_venda desc);
-create index idx_vendas_empresa_cliente on vendas (empresa_id, cliente_id);
+CREATE INDEX idx_mov_estoque_empresa_produto_data
+    ON api_internal.movimentacoes_estoque(empresa_id, produto_id, created_at DESC);
 
-create table venda_itens (
-  id uuid primary key,
-  empresa_id uuid not null references empresas(id),
-  venda_id uuid not null,
-  produto_id uuid not null,
-  produto_nome varchar(180) not null,
-  quantidade numeric(14,3) not null,
-  preco_unitario numeric(14,2) not null,
-  custo_unitario numeric(14,2) not null,
-  total_linha numeric(14,2) not null,
-  custo_linha numeric(14,2) not null,
-  movimenta_estoque boolean not null,
-  created_at timestamptz not null default now(),
-  constraint ck_venda_itens_quantidade check (quantidade > 0),
-  constraint ck_venda_itens_preco check (preco_unitario >= 0),
-  constraint ck_venda_itens_custo check (custo_unitario >= 0),
-  constraint fk_venda_itens_venda_empresa foreign key (venda_id, empresa_id)
-    references vendas(id, empresa_id),
-  constraint fk_venda_itens_produto_empresa foreign key (produto_id, empresa_id)
-    references produtos(id, empresa_id)
+CREATE TABLE public.vendas (
+                               id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                               numero bigint GENERATED ALWAYS AS IDENTITY,
+                               cliente_id uuid REFERENCES public.clientes(id),
+                               data_venda timestamptz NOT NULL DEFAULT now(),
+                               total_custo numeric(14,2) NOT NULL DEFAULT 0,
+                               total_venda numeric(14,2) NOT NULL DEFAULT 0,
+                               lucro numeric(14,2) NOT NULL DEFAULT 0,
+                               observacoes text,
+                               created_at timestamptz NOT NULL DEFAULT now(),
+                               cliente_nome text,
+                               empresa_id uuid NOT NULL REFERENCES public.empresas(id) ON DELETE RESTRICT,
+                               numero_empresa bigint NOT NULL,
+                               status_pagamento text NOT NULL DEFAULT 'PAGO',
+                               pago_em timestamptz,
+                               CONSTRAINT vendas_status_pagamento_check CHECK (status_pagamento IN ('PAGO','A_RECEBER'))
 );
-create index idx_venda_itens_venda on venda_itens (empresa_id, venda_id);
+CREATE UNIQUE INDEX uq_vendas_empresa_numero
+    ON public.vendas(empresa_id, numero_empresa);
+CREATE INDEX idx_vendas_empresa ON public.vendas(empresa_id);
+CREATE INDEX idx_vendas_empresa_status_pagamento
+    ON public.vendas(empresa_id, status_pagamento);
 
-create table venda_pagamentos (
-  id uuid primary key,
-  empresa_id uuid not null references empresas(id),
-  venda_id uuid not null,
-  valor numeric(14,2) not null,
-  paid_at timestamptz not null default now(),
-  created_by uuid not null references usuarios(id),
-  constraint ck_venda_pagamentos_valor check (valor > 0),
-  constraint fk_venda_pagamentos_venda_empresa foreign key (venda_id, empresa_id)
-    references vendas(id, empresa_id)
+CREATE TABLE public.venda_itens (
+                                    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                                    venda_id uuid NOT NULL REFERENCES public.vendas(id) ON DELETE CASCADE,
+                                    produto_id uuid NOT NULL REFERENCES public.produtos(id),
+                                    quantidade numeric(14,3) NOT NULL,
+                                    custo_unitario numeric(14,2) NOT NULL,
+                                    preco_unitario numeric(14,2) NOT NULL,
+                                    total_custo numeric(14,2) NOT NULL,
+                                    total_venda numeric(14,2) NOT NULL,
+                                    lucro numeric(14,2) NOT NULL,
+                                    produto_nome text,
+                                    empresa_id uuid NOT NULL REFERENCES public.empresas(id) ON DELETE RESTRICT,
+                                    CONSTRAINT venda_itens_quantidade_check CHECK (quantidade > 0),
+                                    CONSTRAINT venda_itens_preco_check CHECK (preco_unitario >= 0),
+                                    CONSTRAINT venda_itens_custo_check CHECK (custo_unitario >= 0)
 );
-create index idx_venda_pagamentos_venda on venda_pagamentos (empresa_id, venda_id, paid_at);
+CREATE INDEX idx_venda_itens_venda ON public.venda_itens(empresa_id, venda_id);
 
-create table recebiveis_manuais (
-  id uuid primary key,
-  empresa_id uuid not null references empresas(id),
-  cliente_id uuid,
-  descricao varchar(500) not null,
-  valor_total numeric(14,2) not null,
-  status varchar(20) not null default 'ABERTO',
-  created_by uuid not null references usuarios(id),
-  settled_at timestamptz,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  constraint uq_recebiveis_manuais_id_empresa unique (id, empresa_id),
-  constraint ck_recebiveis_manuais_valor check (valor_total > 0),
-  constraint ck_recebiveis_manuais_status check (status in ('ABERTO','QUITADO')),
-  constraint fk_recebiveis_manuais_cliente_empresa foreign key (cliente_id, empresa_id)
-    references clientes(id, empresa_id)
+CREATE TABLE public.venda_recebimentos (
+                                           id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                                           empresa_id uuid NOT NULL REFERENCES public.empresas(id) ON DELETE CASCADE,
+                                           venda_id uuid NOT NULL REFERENCES public.vendas(id) ON DELETE CASCADE,
+                                           valor numeric(14,2) NOT NULL,
+                                           data_recebimento date NOT NULL DEFAULT CURRENT_DATE,
+                                           observacoes text,
+                                           created_by uuid,
+                                           created_at timestamptz NOT NULL DEFAULT now(),
+                                           CONSTRAINT venda_recebimentos_valor_check CHECK (valor > 0)
 );
-create index idx_recebiveis_manuais_empresa_status on recebiveis_manuais (empresa_id, status, created_at desc);
+CREATE INDEX idx_venda_recebimentos_venda
+    ON public.venda_recebimentos(empresa_id, venda_id, data_recebimento);
 
-create table recebivel_manual_pagamentos (
-  id uuid primary key,
-  empresa_id uuid not null references empresas(id),
-  recebivel_id uuid not null,
-  valor numeric(14,2) not null,
-  paid_at timestamptz not null default now(),
-  created_by uuid not null references usuarios(id),
-  constraint ck_recebivel_manual_pagamentos_valor check (valor > 0),
-  constraint fk_recebivel_manual_pagamentos_recebivel_empresa foreign key (recebivel_id, empresa_id)
-    references recebiveis_manuais(id, empresa_id)
+CREATE TABLE public.recebiveis_manuais (
+                                           id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                                           empresa_id uuid NOT NULL REFERENCES public.empresas(id) ON DELETE CASCADE,
+                                           cliente_id uuid NOT NULL REFERENCES public.clientes(id) ON DELETE RESTRICT,
+                                           valor_original numeric(14,2) NOT NULL,
+                                           data_lancamento date NOT NULL DEFAULT CURRENT_DATE,
+                                           observacoes text,
+                                           status text NOT NULL DEFAULT 'ABERTO',
+                                           quitado_em timestamptz,
+                                           created_at timestamptz NOT NULL DEFAULT now(),
+                                           CONSTRAINT recebiveis_manuais_status_check CHECK (status IN ('ABERTO','QUITADO')),
+                                           CONSTRAINT recebiveis_manuais_valor_original_check CHECK (valor_original > 0)
 );
-create index idx_recebivel_manual_pagamentos_recebivel on recebivel_manual_pagamentos (empresa_id, recebivel_id, paid_at);
+CREATE INDEX idx_recebiveis_manuais_empresa_status
+    ON public.recebiveis_manuais(empresa_id, status, created_at DESC);
+
+CREATE TABLE public.recebivel_manual_pagamentos (
+                                                    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                                                    empresa_id uuid NOT NULL REFERENCES public.empresas(id) ON DELETE CASCADE,
+                                                    recebivel_id uuid NOT NULL REFERENCES public.recebiveis_manuais(id) ON DELETE CASCADE,
+                                                    valor numeric(14,2) NOT NULL,
+                                                    data_recebimento date NOT NULL DEFAULT CURRENT_DATE,
+                                                    observacoes text,
+                                                    created_at timestamptz NOT NULL DEFAULT now(),
+                                                    CONSTRAINT recebivel_manual_pagamentos_valor_check CHECK (valor > 0)
+);
+CREATE INDEX idx_recebivel_manual_pagamentos_recebivel
+    ON public.recebivel_manual_pagamentos(empresa_id, recebivel_id, data_recebimento);
+
+CREATE TABLE api_internal.venda_sequencias (
+                                               empresa_id uuid PRIMARY KEY REFERENCES public.empresas(id),
+                                               ultimo_numero bigint NOT NULL DEFAULT 0,
+                                               CONSTRAINT ck_venda_sequencias_numero CHECK (ultimo_numero >= 0)
+);
