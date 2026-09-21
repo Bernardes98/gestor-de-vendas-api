@@ -3,7 +3,6 @@ package com.gestordevendas.api.sale;
 import com.gestordevendas.api.client.Client;
 import com.gestordevendas.api.company.Company;
 import jakarta.persistence.*;
-import org.hibernate.annotations.Formula;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -53,15 +52,13 @@ public class Sale {
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private Instant createdAt;
 
-    @Enumerated(EnumType.STRING)
-    @Formula("coalesce((select ve.status from api_internal.venda_estados ve where ve.venda_id = id), 'ATIVA')")
+    @Transient
     private SaleStatus status;
 
-    @Enumerated(EnumType.STRING)
-    @Formula("coalesce((select ve.forma_pagamento from api_internal.venda_estados ve where ve.venda_id = id), case when status_pagamento = 'A_RECEBER' then 'PRAZO' else 'AVISTA' end)")
+    @Transient
     private SalePaymentType paymentType;
 
-    @Formula("(select ve.cancel_reason from api_internal.venda_estados ve where ve.venda_id = id)")
+    @Transient
     private String cancelReason;
 
     protected Sale() {}
