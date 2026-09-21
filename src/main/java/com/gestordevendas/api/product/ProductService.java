@@ -91,8 +91,11 @@ public class ProductService {
     }
 
     private void apply(Product product, ProductRequest request, UUID companyId) {
-        ProductCategory category = categoryRepository.findByIdAndCompanyId(request.categoryId(), companyId)
-            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "CATEGORY_NOT_FOUND", "Categoria não encontrada."));
+        ProductCategory category = null;
+        if (request.categoryId() != null) {
+            category = categoryRepository.findByIdAndCompanyId(request.categoryId(), companyId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "CATEGORY_NOT_FOUND", "Categoria não encontrada."));
+        }
         product.update(request.name(), request.code(), request.brand(), request.description(), category,
             request.costPrice(), request.salePrice(), request.stockControlled(),
             request.minimumStock() == null ? BigDecimal.ZERO : request.minimumStock());
@@ -103,7 +106,7 @@ public class ProductService {
         BigDecimal margin = canSeeCost ? margin(product.getCostPrice(), product.getSalePrice()) : null;
         List<ProductPhotoResponse> photos = photoRepository
             .findAllByCompanyIdAndProductIdOrderByOrderIndexAsc(context.companyId(), product.getId()).stream()
-            .map(photo -> new ProductPhotoResponse(photo.getId(), objectStorage.publicUrl(photo.getObjectKey()),
+            .map(photo -> new ProductPhotoResponse(photo.getId(), photo.getUrl(),
                 photo.getContentType(), photo.getSizeBytes(), photo.getOrderIndex()))
             .toList();
         return new ProductResponse(product.getId(), product.getName(), product.getCode(), product.getBrand(), product.getDescription(),

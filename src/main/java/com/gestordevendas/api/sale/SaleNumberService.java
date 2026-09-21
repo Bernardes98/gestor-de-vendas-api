@@ -12,8 +12,8 @@ public class SaleNumberService {
 
     public long next(UUID companyId) {
         Long value = jdbcTemplate.queryForObject(
-            "insert into venda_sequencias (empresa_id, ultimo_numero) values (?, 1) " +
-                "on conflict (empresa_id) do update set ultimo_numero = venda_sequencias.ultimo_numero + 1 returning ultimo_numero",
+            "insert into api_internal.venda_sequencias (empresa_id, ultimo_numero) values (?, 1) " +
+                "on conflict (empresa_id) do update set ultimo_numero = api_internal.venda_sequencias.ultimo_numero + 1 returning ultimo_numero",
             Long.class, companyId);
         return value == null ? 1L : value;
     }

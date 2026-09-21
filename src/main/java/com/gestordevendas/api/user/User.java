@@ -10,7 +10,7 @@ import java.util.Locale;
 import java.util.UUID;
 
 @Entity
-@Table(name = "usuarios")
+@Table(name = "usuarios", schema = "api_internal")
 public class User {
     @Id
     private UUID id;

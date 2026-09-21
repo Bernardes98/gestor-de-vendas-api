@@ -6,7 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 import java.util.UUID;
 
-public interface ClientHiddenProductRepository extends JpaRepository<ClientHiddenProduct, UUID> {
+public interface ClientHiddenProductRepository extends JpaRepository<ClientHiddenProduct, ClientHiddenProductId> {
     @EntityGraph(attributePaths = "product")
     List<ClientHiddenProduct> findAllByCompanyIdAndClientId(UUID companyId, UUID clientId);
     boolean existsByCompanyIdAndClientIdAndProductId(UUID companyId, UUID clientId, UUID productId);

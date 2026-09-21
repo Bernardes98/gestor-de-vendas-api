@@ -26,4 +26,5 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     List<Product> findAllByCompanyIdAndActiveTrueOrderByNameAsc(UUID companyId);
 
     long countByCompanyIdAndCategoryId(UUID companyId, UUID categoryId);
+    long countByCompanyId(UUID companyId);
 }

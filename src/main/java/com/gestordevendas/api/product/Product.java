@@ -24,32 +24,32 @@ public class Product {
     @JoinColumn(name = "empresa_id", nullable = false)
     private Company company;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "categoria_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "grupo_id")
     private ProductCategory category;
 
-    @Column(name = "nome", nullable = false, length = 180)
+    @Column(name = "nome", nullable = false, length = 150)
     private String name;
 
-    @Column(name = "codigo", length = 80)
+    @Column(name = "codigo", length = 50)
     private String code;
 
-    @Column(name = "marca", length = 120)
+    @Column(name = "marca", length = 100)
     private String brand;
 
-    @Column(name = "descricao", length = 1000)
+    @Column(name = "descricao")
     private String description;
 
     @Column(name = "custo", nullable = false, precision = 14, scale = 2)
     private BigDecimal costPrice = BigDecimal.ZERO;
 
-    @Column(name = "preco_venda", nullable = false, precision = 14, scale = 2)
-    private BigDecimal salePrice;
+    @Column(name = "preco_padrao", nullable = false, precision = 14, scale = 2)
+    private BigDecimal salePrice = BigDecimal.ZERO;
 
-    @Column(name = "controlar_estoque", nullable = false)
+    @Column(name = "controla_estoque", nullable = false)
     private boolean stockControlled;
 
-    @Column(name = "estoque_atual", nullable = false, precision = 14, scale = 3)
+    @Column(name = "estoque", nullable = false, precision = 14, scale = 3)
     private BigDecimal currentStock = BigDecimal.ZERO;
 
     @Column(name = "estoque_minimo", nullable = false, precision = 14, scale = 3)
@@ -61,9 +61,6 @@ public class Product {
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private Instant createdAt;
 
-    @Column(name = "updated_at", nullable = false, insertable = false, updatable = false)
-    private Instant updatedAt;
-
     protected Product() {}
 
     public static Product create(Company company, String name, BigDecimal salePrice) {
@@ -71,7 +68,7 @@ public class Product {
         product.id = UUID.randomUUID();
         product.company = company;
         product.name = name.trim();
-        product.salePrice = salePrice;
+        product.salePrice = salePrice == null ? BigDecimal.ZERO : salePrice;
         return product;
     }
 
@@ -101,8 +98,8 @@ public class Product {
         this.brand = blankToNull(brand);
         this.description = blankToNull(description);
         this.category = category;
-        this.costPrice = costPrice;
-        this.salePrice = salePrice;
+        this.costPrice = costPrice == null ? BigDecimal.ZERO : costPrice;
+        this.salePrice = salePrice == null ? BigDecimal.ZERO : salePrice;
         this.stockControlled = stockControlled;
         this.minimumStock = minimumStock == null ? BigDecimal.ZERO : minimumStock;
     }
@@ -111,9 +108,7 @@ public class Product {
 
     public void adjustStock(BigDecimal delta) {
         BigDecimal next = this.currentStock.add(delta);
-        if (next.signum() < 0) {
-            throw new IllegalArgumentException("Estoque não pode ficar negativo.");
-        }
+        if (next.signum() < 0) throw new IllegalArgumentException("Estoque não pode ficar negativo.");
         this.currentStock = next;
     }
 

@@ -92,7 +92,9 @@ public class PublicOrderService {
 
     private Client requirePublicClient(String token) {
         if (token == null || token.isBlank()) throw invalidLink();
-        Client client = clientRepository.findByOrderTokenAndActiveTrue(token).orElseThrow(this::invalidLink);
+        UUID orderToken;
+        try { orderToken = UUID.fromString(token); } catch (IllegalArgumentException ex) { throw invalidLink(); }
+        Client client = clientRepository.findByOrderTokenAndActiveTrue(orderToken).orElseThrow(this::invalidLink);
         if (!client.getCompany().isActive()) throw invalidLink();
         return client;
     }
@@ -103,7 +105,7 @@ public class PublicOrderService {
 
     private List<String> photoUrls(UUID companyId, UUID productId) {
         return photoRepository.findAllByCompanyIdAndProductIdOrderByOrderIndexAsc(companyId, productId).stream()
-            .map(photo -> objectStorage.publicUrl(photo.getObjectKey())).toList();
+            .map(photo -> photo.getUrl()).toList();
     }
 
     static CustomerOrderResponse response(CustomerOrder order, List<CustomerOrderItem> items) {

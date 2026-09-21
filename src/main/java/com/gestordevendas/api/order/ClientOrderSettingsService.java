@@ -42,7 +42,7 @@ public class ClientOrderSettingsService {
     public OrderLinkResponse regenerate(UUID clientId) {
         TenantContext context = currentTenant(); tenantGuard.requireOwnerOrAdmin(context);
         Client client = requireClient(clientId, context.companyId());
-        client.rotateOrderToken(tokenService.generateRawToken());
+        client.rotateOrderToken(UUID.randomUUID());
         auditService.record("CLIENT_ORDER_LINK_REGENERATED", context.companyId(), context.userId(), "CLIENT", clientId, null, Map.of());
         return new OrderLinkResponse(client.getOrderToken());
     }

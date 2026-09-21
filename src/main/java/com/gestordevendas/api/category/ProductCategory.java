@@ -13,7 +13,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "categorias_produtos")
+@Table(name = "produto_grupos")
 public class ProductCategory {
     @Id
     private UUID id;
@@ -22,7 +22,7 @@ public class ProductCategory {
     @JoinColumn(name = "empresa_id", nullable = false)
     private Company company;
 
-    @Column(name = "nome", nullable = false, length = 120)
+    @Column(name = "nome", nullable = false)
     private String name;
 
     @Column(name = "ordem", nullable = false)
@@ -41,7 +41,7 @@ public class ProductCategory {
         category.id = UUID.randomUUID();
         category.company = company;
         category.name = name.trim();
-        category.orderIndex = orderIndex;
+        category.orderIndex = Math.max(1, orderIndex);
         return category;
     }
 
@@ -50,5 +50,5 @@ public class ProductCategory {
     public String getName() { return name; }
     public int getOrderIndex() { return orderIndex; }
     public void setName(String name) { this.name = name.trim(); }
-    public void setOrderIndex(int orderIndex) { this.orderIndex = orderIndex; }
+    public void setOrderIndex(int orderIndex) { this.orderIndex = Math.max(1, orderIndex); }
 }

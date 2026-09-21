@@ -38,7 +38,7 @@ public class Company {
     @Column(length = 120)
     private String cidade;
 
-    @Column(name = "logo_key", length = 500)
+    @Column(name = "logo_url", length = 500)
     private String logoKey;
 
     @Column(name = "cor_primaria", nullable = false, length = 20)

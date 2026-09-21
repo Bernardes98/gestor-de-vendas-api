@@ -16,6 +16,6 @@ public interface ProductPhotoRepository extends JpaRepository<ProductPhoto, UUID
     @EntityGraph(attributePaths = {"company", "product"})
     Optional<ProductPhoto> findByIdAndCompanyIdAndProductId(UUID id, UUID companyId, UUID productId);
 
-    @Query("select coalesce(max(p.orderIndex), -1) from ProductPhoto p where p.company.id = :companyId and p.product.id = :productId")
+    @Query("select coalesce(max(p.orderIndex), 0) from ProductPhoto p where p.company.id = :companyId and p.product.id = :productId")
     int maxOrder(@Param("companyId") UUID companyId, @Param("productId") UUID productId);
 }

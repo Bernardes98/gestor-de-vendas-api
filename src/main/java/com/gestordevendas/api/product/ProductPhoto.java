@@ -1,13 +1,7 @@
 package com.gestordevendas.api.product;
 
 import com.gestordevendas.api.company.Company;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -26,14 +20,11 @@ public class ProductPhoto {
     @JoinColumn(name = "produto_id", nullable = false)
     private Product product;
 
-    @Column(name = "object_key", nullable = false, unique = true, length = 500)
-    private String objectKey;
+    @Column(name = "storage_path", nullable = false, unique = true)
+    private String storagePath;
 
-    @Column(name = "content_type", nullable = false, length = 100)
-    private String contentType;
-
-    @Column(name = "tamanho_bytes", nullable = false)
-    private long sizeBytes;
+    @Column(name = "url", nullable = false)
+    private String url;
 
     @Column(name = "ordem", nullable = false)
     private int orderIndex;
@@ -43,24 +34,24 @@ public class ProductPhoto {
 
     protected ProductPhoto() {}
 
-    public static ProductPhoto create(Company company, Product product, String objectKey,
-                                      String contentType, long sizeBytes, int orderIndex) {
+    public static ProductPhoto create(Company company, Product product, String storagePath, String url, int orderIndex) {
         ProductPhoto photo = new ProductPhoto();
         photo.id = UUID.randomUUID();
         photo.company = company;
         photo.product = product;
-        photo.objectKey = objectKey;
-        photo.contentType = contentType;
-        photo.sizeBytes = sizeBytes;
-        photo.orderIndex = orderIndex;
+        photo.storagePath = storagePath;
+        photo.url = url;
+        photo.orderIndex = Math.max(1, orderIndex);
         return photo;
     }
 
     public UUID getId() { return id; }
     public Company getCompany() { return company; }
     public Product getProduct() { return product; }
-    public String getObjectKey() { return objectKey; }
-    public String getContentType() { return contentType; }
-    public long getSizeBytes() { return sizeBytes; }
+    public String getStoragePath() { return storagePath; }
+    public String getObjectKey() { return storagePath; }
+    public String getUrl() { return url; }
+    public String getContentType() { return null; }
+    public long getSizeBytes() { return 0L; }
     public int getOrderIndex() { return orderIndex; }
 }

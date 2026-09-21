@@ -15,18 +15,19 @@ public class CustomerOrderItem {
     @ManyToOne(fetch = FetchType.LAZY, optional = false) @JoinColumn(name = "empresa_id", nullable = false) private Company company;
     @ManyToOne(fetch = FetchType.LAZY, optional = false) @JoinColumn(name = "pedido_id", nullable = false) private CustomerOrder order;
     @ManyToOne(fetch = FetchType.LAZY, optional = false) @JoinColumn(name = "produto_id", nullable = false) private Product product;
-    @Column(name = "produto_nome", nullable = false, length = 180) private String productName;
+    @Column(name = "produto_nome", nullable = false) private String productName;
     @Column(name = "quantidade", nullable = false, precision = 14, scale = 3) private BigDecimal quantity;
     @Column(name = "preco_unitario", nullable = false, precision = 14, scale = 2) private BigDecimal unitPrice;
-    @Column(name = "total_linha", nullable = false, precision = 14, scale = 2) private BigDecimal lineTotal;
+    @Column(name = "total", nullable = false, precision = 14, scale = 2) private BigDecimal lineTotal;
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false) private Instant createdAt;
 
     protected CustomerOrderItem() {}
 
     public static CustomerOrderItem create(Company company, CustomerOrder order, Product product,
                                            BigDecimal quantity, BigDecimal unitPrice, BigDecimal lineTotal) {
-        CustomerOrderItem item = new CustomerOrderItem(); item.id = UUID.randomUUID(); item.company = company; item.order = order;
-        item.product = product; item.productName = product.getName(); item.quantity = quantity; item.unitPrice = unitPrice; item.lineTotal = lineTotal;
+        CustomerOrderItem item = new CustomerOrderItem();
+        item.id = UUID.randomUUID(); item.company = company; item.order = order; item.product = product;
+        item.productName = product.getName(); item.quantity = quantity; item.unitPrice = unitPrice; item.lineTotal = lineTotal;
         return item;
     }
 

@@ -22,6 +22,9 @@ public interface CompanyMembershipRepository extends JpaRepository<CompanyMember
     @Query("select m from CompanyMembership m join fetch m.user where m.company.id = :companyId and m.active = true")
     List<CompanyMembership> findActiveByCompanyId(@Param("companyId") UUID companyId);
 
+    @Query("select m from CompanyMembership m join fetch m.user where m.company.id = :companyId order by m.createdAt asc")
+    List<CompanyMembership> findByCompanyIdOrderByCreatedAtAsc(@Param("companyId") UUID companyId);
+
     @Query("select count(m) from CompanyMembership m where m.company.id = :companyId and m.role = :role and m.active = true")
     long countActiveByCompanyIdAndRole(@Param("companyId") UUID companyId, @Param("role") CompanyRole role);
 }

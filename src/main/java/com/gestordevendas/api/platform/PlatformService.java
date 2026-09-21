@@ -5,12 +5,17 @@ import com.gestordevendas.api.auth.RefreshTokenRepository;
 import com.gestordevendas.api.common.error.ApiException;
 import com.gestordevendas.api.common.security.CurrentUserService;
 import com.gestordevendas.api.common.token.SecureTokenService;
+import com.gestordevendas.api.client.ClientRepository;
 import com.gestordevendas.api.company.Company;
 import com.gestordevendas.api.company.CompanyRepository;
 import com.gestordevendas.api.invite.CompanyInvite;
 import com.gestordevendas.api.invite.CompanyInviteRepository;
 import com.gestordevendas.api.invite.InviteService;
+import com.gestordevendas.api.product.ProductRepository;
+import com.gestordevendas.api.sale.SaleRepository;
+import com.gestordevendas.api.user.CompanyMembership;
 import com.gestordevendas.api.user.CompanyMembershipRepository;
+import com.gestordevendas.api.user.CompanyRole;
 import com.gestordevendas.api.user.User;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -34,6 +39,9 @@ public class PlatformService {
     private final SecureTokenService tokenService;
     private final InviteService inviteService;
     private final AuditService auditService;
+    private final ClientRepository clientRepository;
+    private final ProductRepository productRepository;
+    private final SaleRepository saleRepository;
 
     public PlatformService(CurrentUserService currentUserService,
                            CompanyRepository companyRepository,
@@ -42,7 +50,10 @@ public class PlatformService {
                            RefreshTokenRepository refreshTokenRepository,
                            SecureTokenService tokenService,
                            InviteService inviteService,
-                           AuditService auditService) {
+                           AuditService auditService,
+                           ClientRepository clientRepository,
+                           ProductRepository productRepository,
+                           SaleRepository saleRepository) {
         this.currentUserService = currentUserService;
         this.companyRepository = companyRepository;
         this.companyInviteRepository = companyInviteRepository;
@@ -51,6 +62,9 @@ public class PlatformService {
         this.tokenService = tokenService;
         this.inviteService = inviteService;
         this.auditService = auditService;
+        this.clientRepository = clientRepository;
+        this.productRepository = productRepository;
+        this.saleRepository = saleRepository;
     }
 
     @Transactional
@@ -107,9 +121,47 @@ public class PlatformService {
     }
 
     @Transactional(readOnly = true)
-    public List<Company> listCompanies() {
+    public List<CompanySummaryView> listCompanySummaries() {
         requirePlatformAdmin();
-        return companyRepository.findAll();
+        return companyRepository.findAll().stream()
+            .map(company -> {
+                List<CompanyMembership> activeMemberships = membershipRepository.findActiveByCompanyId(company.getId());
+                String ownerEmail = activeMemberships.stream()
+                    .filter(membership -> membership.getRole() == CompanyRole.OWNER)
+                    .map(membership -> membership.getUser().getEmail())
+                    .findFirst()
+                    .orElse("");
+                return new CompanySummaryView(
+                    company.getId(),
+                    company.getName(),
+                    company.getSlug(),
+                    company.isActive(),
+                    ownerEmail,
+                    activeMemberships.size(),
+                    clientRepository.countByCompanyId(company.getId()),
+                    productRepository.countByCompanyId(company.getId()),
+                    saleRepository.countByCompanyId(company.getId())
+                );
+            })
+            .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<CompanyUserView> listCompanyUsers(UUID companyId) {
+        requirePlatformAdmin();
+        if (!companyRepository.existsById(companyId)) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "COMPANY_NOT_FOUND", "Empresa não encontrada.");
+        }
+        return membershipRepository.findByCompanyIdOrderByCreatedAtAsc(companyId).stream()
+            .map(membership -> new CompanyUserView(
+                membership.getId(),
+                membership.getUser().getId(),
+                membership.getUser().getName(),
+                membership.getUser().getEmail(),
+                membership.getRole(),
+                membership.isActive(),
+                membership.getCreatedAt()))
+            .toList();
     }
 
     private User requirePlatformAdmin() {
@@ -135,4 +187,10 @@ public class PlatformService {
 
     public record CreateCompanyInviteCommand(String name, String legalName, String document, String ownerEmail,
                                              String primaryColor, String secondaryColor) {}
+
+    public record CompanySummaryView(UUID id, String name, String slug, boolean active, String ownerEmail,
+                                     long userCount, long clientCount, long productCount, long saleCount) {}
+
+    public record CompanyUserView(UUID membershipId, UUID userId, String name, String email, CompanyRole role,
+                                  boolean active, Instant createdAt) {}
 }

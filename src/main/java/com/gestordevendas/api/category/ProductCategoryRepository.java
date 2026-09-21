@@ -18,6 +18,6 @@ public interface ProductCategoryRepository extends JpaRepository<ProductCategory
 
     boolean existsByCompanyIdAndNameIgnoreCase(UUID companyId, String name);
 
-    @Query("select coalesce(max(c.orderIndex), -1) from ProductCategory c where c.company.id = :companyId")
+    @Query("select coalesce(max(c.orderIndex), 0) from ProductCategory c where c.company.id = :companyId")
     int maxOrder(@Param("companyId") UUID companyId);
 }

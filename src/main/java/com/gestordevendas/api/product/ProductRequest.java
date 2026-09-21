@@ -14,7 +14,7 @@ public record ProductRequest(
     @Size(max = 80) String code,
     @Size(max = 120) String brand,
     @Size(max = 1000) String description,
-    @NotNull UUID categoryId,
+    UUID categoryId,
     @NotNull @DecimalMin("0.00") @Digits(integer = 12, fraction = 2) BigDecimal costPrice,
     @NotNull @DecimalMin("0.00") @Digits(integer = 12, fraction = 2) BigDecimal salePrice,
     boolean stockControlled,

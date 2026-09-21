@@ -136,8 +136,18 @@ public class AuthService {
             throw new ApiException(HttpStatus.FORBIDDEN, "USER_BLOCKED", "Usuário bloqueado.");
         }
         if (user.isPlatformAdmin()) {
-            return new MeResponse(
-                new MeResponse.UserView(user.getId(), user.getEmail(), true), null, null);
+            return membershipRepository.findByUserId(user.getId())
+                .filter(CompanyMembership::isActive)
+                .filter(membership -> membership.getCompany().isActive())
+                .map(membership -> new MeResponse(
+                    new MeResponse.UserView(user.getId(), user.getEmail(), true),
+                    new MeResponse.CompanyView(
+                        membership.getCompany().getId(),
+                        membership.getCompany().getName(),
+                        true),
+                    membership.getRole()))
+                .orElseGet(() -> new MeResponse(
+                    new MeResponse.UserView(user.getId(), user.getEmail(), true), null, null));
         }
         TenantContext context = tenantContextService.requireForUser(user.getId());
         CompanyMembership membership = membershipRepository.findByUserId(user.getId())

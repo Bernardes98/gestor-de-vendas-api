@@ -34,7 +34,9 @@ public class SaleReceiptService {
         Sale sale = saleService.require(saleId, context.companyId());
         Company company = sale.getCompany(); Client client = sale.getClient();
         BigDecimal paid = paymentRepository.sumPaid(context.companyId(), saleId).setScale(2, RoundingMode.HALF_UP);
-        BigDecimal outstanding = sale.getPaymentType() == SalePaymentType.PRAZO && sale.getStatus() == SaleStatus.ATIVA
+        SalePaymentType paymentType = saleService.resolvedPaymentType(sale);
+        SaleStatus status = saleService.resolvedStatus(sale);
+        BigDecimal outstanding = paymentType == SalePaymentType.PRAZO && status == SaleStatus.ATIVA
             ? sale.getTotal().subtract(paid).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP)
             : BigDecimal.ZERO.setScale(2);
         String logo = company.getLogoKey() == null ? null : objectStorage.publicUrl(company.getLogoKey());
@@ -44,7 +46,7 @@ public class SaleReceiptService {
             client.getPhone(), client.getAddress(), client.getCity());
         List<SaleReceiptResponse.Item> items = itemRepository.findAllByCompanyIdAndSaleId(context.companyId(), saleId).stream()
             .map(item -> new SaleReceiptResponse.Item(item.getProductName(), item.getQuantity(), item.getUnitPrice(), item.getLineTotal())).toList();
-        return new SaleReceiptResponse(companyInfo, clientInfo, sale.getNumber(), sale.getSoldAt(), sale.getPaymentType(),
+        return new SaleReceiptResponse(companyInfo, clientInfo, sale.getNumber(), sale.getSoldAt(), paymentType,
             sale.getTotal(), paid, outstanding, items);
     }
 }

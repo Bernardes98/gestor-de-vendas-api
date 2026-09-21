@@ -17,7 +17,7 @@ import java.util.Map;
 import java.util.UUID;
 
 @Entity
-@Table(name = "auditoria")
+@Table(name = "auditoria", schema = "api_internal")
 public class AuditEvent {
     @Id
     private UUID id;

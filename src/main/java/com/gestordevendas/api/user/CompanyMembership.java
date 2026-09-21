@@ -25,7 +25,7 @@ public class CompanyMembership {
     private Company company;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "usuario_id", nullable = false)
+    @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
     @Enumerated(EnumType.STRING)
@@ -38,8 +38,6 @@ public class CompanyMembership {
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private Instant createdAt;
 
-    @Column(name = "updated_at", nullable = false, insertable = false, updatable = false)
-    private Instant updatedAt;
 
     protected CompanyMembership() {
     }
@@ -61,6 +59,7 @@ public class CompanyMembership {
     public User getUser() { return user; }
     public CompanyRole getRole() { return role; }
     public boolean isActive() { return active; }
+    public Instant getCreatedAt() { return createdAt; }
     public void setRole(CompanyRole role) { this.role = role; }
     public void setActive(boolean active) { this.active = active; }
 }

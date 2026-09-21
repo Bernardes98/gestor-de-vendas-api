@@ -41,10 +41,15 @@ public class ProductPhotoService {
         Product product = productService.requireActive(productId, context.companyId());
         StoredObject stored = mediaStorageService.storeProductImage(context.companyId(), productId, file);
         try {
-            ProductPhoto photo = ProductPhoto.create(product.getCompany(), product, stored.key(), stored.contentType(),
-                stored.sizeBytes(), repository.maxOrder(context.companyId(), productId) + 1);
+            repository.findFirstByCompanyIdAndProductIdOrderByOrderIndexAsc(context.companyId(), productId)
+                .ifPresent(existing -> {
+                    mediaStorageService.delete(existing.getStoragePath());
+                    repository.delete(existing);
+                    repository.flush();
+                });
+            ProductPhoto photo = ProductPhoto.create(product.getCompany(), product, stored.key(), stored.url(), 1);
             repository.save(photo);
-            return new ProductPhotoResponse(photo.getId(), stored.url(), photo.getContentType(), photo.getSizeBytes(), photo.getOrderIndex());
+            return new ProductPhotoResponse(photo.getId(), photo.getUrl(), stored.contentType(), stored.sizeBytes(), photo.getOrderIndex());
         } catch (RuntimeException exception) {
             mediaStorageService.delete(stored.key());
             throw exception;
@@ -58,7 +63,7 @@ public class ProductPhotoService {
         productService.requireActive(productId, context.companyId());
         ProductPhoto photo = repository.findByIdAndCompanyIdAndProductId(photoId, context.companyId(), productId)
             .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PHOTO_NOT_FOUND", "Foto não encontrada."));
-        mediaStorageService.delete(photo.getObjectKey());
+        mediaStorageService.delete(photo.getStoragePath());
         repository.delete(photo);
     }
 

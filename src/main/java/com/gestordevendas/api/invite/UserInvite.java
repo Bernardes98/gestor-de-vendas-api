@@ -17,7 +17,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "convites_usuario")
+@Table(name = "convites_usuario", schema = "api_internal")
 public class UserInvite {
     @Id
     private UUID id;

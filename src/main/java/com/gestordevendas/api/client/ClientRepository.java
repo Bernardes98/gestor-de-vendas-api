@@ -15,5 +15,7 @@ public interface ClientRepository extends JpaRepository<Client, UUID> {
     List<Client> findAllByCompanyIdAndActiveTrueOrderByNameAsc(UUID companyId);
 
     @EntityGraph(attributePaths = "company")
-    Optional<Client> findByOrderTokenAndActiveTrue(String orderToken);
+    Optional<Client> findByOrderTokenAndActiveTrue(UUID orderToken);
+
+    long countByCompanyId(UUID companyId);
 }

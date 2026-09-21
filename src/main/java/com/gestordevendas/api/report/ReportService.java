@@ -89,7 +89,7 @@ public class ReportService {
             .sorted(Map.Entry.<UUID, BigDecimal>comparingByValue().reversed()).limit(5)
             .map(entry -> new DashboardOverviewResponse.TopClient(entry.getKey(), topNames.get(entry.getKey()), money(entry.getValue()))).toList();
 
-        List<DashboardOverviewResponse.LatestSale> latest = saleRepository.findTop5ByCompanyIdAndStatusOrderBySoldAtDesc(context.companyId(), SaleStatus.ATIVA).stream()
+        List<DashboardOverviewResponse.LatestSale> latest = saleRepository.findTop5Active(context.companyId()).stream()
             .map(sale -> new DashboardOverviewResponse.LatestSale(sale.getId(), sale.getNumber(), sale.getClient() == null ? "Venda rápida" : sale.getClient().getName(),
                 sale.getSoldAt(), money(sale.getTotal()), money(sale.getProfitTotal()))).toList();
 
@@ -141,11 +141,11 @@ public class ReportService {
     }
     private List<Sale> activeSales(UUID companyId, LocalDate from, LocalDate to) {
         Instant start = from.atStartOfDay(zone).toInstant(); Instant end = to.plusDays(1).atStartOfDay(zone).toInstant();
-        return saleRepository.findAllInRange(companyId, SaleStatus.ATIVA, start, end);
+        return saleRepository.findAllActiveInRange(companyId, start, end);
     }
     private String firstPhoto(UUID companyId, UUID productId) {
         return photoRepository.findFirstByCompanyIdAndProductIdOrderByOrderIndexAsc(companyId, productId)
-            .map(photo -> objectStorage.publicUrl(photo.getObjectKey())).orElse(null);
+            .map(photo -> photo.getUrl()).orElse(null);
     }
     private Range currentRange(ChartPeriod period, LocalDate date) {
         return switch (period) {

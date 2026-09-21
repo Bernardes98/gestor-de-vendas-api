@@ -76,7 +76,7 @@ public class ProductCategoryService {
             if (category == null) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_CATEGORY_ORDER", "Categoria inválida para esta empresa.");
             }
-            category.setOrderIndex(i);
+            category.setOrderIndex(i + 1);
         }
         return request.categoryIds().stream().map(byId::get).map(CategoryResponse::from).toList();
     }

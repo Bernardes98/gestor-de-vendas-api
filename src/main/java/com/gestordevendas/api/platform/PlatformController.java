@@ -69,10 +69,24 @@ public class PlatformController {
     }
 
     @GetMapping("/companies")
-    List<CompanyResponse> list() {
-        return platformService.listCompanies().stream()
-            .map(company -> new CompanyResponse(company.getId(), company.getName(), company.getSlug(), company.isActive()))
+    List<CompanySummaryResponse> list() {
+        return platformService.listCompanySummaries().stream()
+            .map(company -> new CompanySummaryResponse(
+                company.id(),
+                company.name(),
+                company.slug(),
+                company.active(),
+                company.ownerEmail(),
+                company.userCount(),
+                company.clientCount(),
+                company.productCount(),
+                company.saleCount()))
             .toList();
+    }
+
+    @GetMapping("/companies/{id}/users")
+    List<PlatformService.CompanyUserView> users(@PathVariable UUID id) {
+        return platformService.listCompanyUsers(id);
     }
 
 
@@ -103,5 +117,7 @@ public class PlatformController {
     ) {}
 
     public record CompanyResponse(UUID id, String name, String slug, boolean active) {}
+    public record CompanySummaryResponse(UUID id, String name, String slug, boolean active, String ownerEmail,
+                                         long userCount, long clientCount, long productCount, long saleCount) {}
     public record CompanyInviteResponse(UUID id, CompanyResponse company, String ownerEmail, Instant expiresAt) {}
 }
