@@ -110,7 +110,7 @@ public class PublicOrderService {
 
     static CustomerOrderResponse response(CustomerOrder order, List<CustomerOrderItem> items) {
         return new CustomerOrderResponse(order.getId(), order.getClient().getId(), order.getClient().getName(), apiStatus(order.getStatus()),
-            order.getViewedAt(), order.getNotes(), order.getTotal(), order.getSale() == null ? null : order.getSale().getId(), order.getCreatedAt(),
+            order.getViewedAt(), order.getNotes(), order.getTotal(), order.getSaleId(), order.getCreatedAt(),
             items.stream().map(item -> new CustomerOrderItemResponse(item.getId(), item.getProduct().getId(), item.getProductName(),
                 item.getQuantity(), item.getUnitPrice(), item.getLineTotal())).toList());
     }

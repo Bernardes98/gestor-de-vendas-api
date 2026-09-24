@@ -8,6 +8,7 @@ import com.gestordevendas.api.product.Product;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.math.BigDecimal;
 
@@ -18,6 +19,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class PublicOrderIntegrationTest extends BusinessIntegrationTestSupport {
 
     @Autowired ClientProductPriceRepository priceRepository;
+    @Autowired JdbcTemplate jdbcTemplate;
 
     @Test
     void publicCatalogUsesClientPriceAndHiddenProductsAndRegenerationInvalidatesOldToken() throws Exception {
@@ -108,6 +110,32 @@ class PublicOrderIntegrationTest extends BusinessIntegrationTestSupport {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("CONVERTED"))
             .andExpect(jsonPath("$.total").value(54.00));
+    }
+
+
+    @Test
+    void orderListKeepsHistoricalMissingSaleIdWithoutFailing() throws Exception {
+        Client client = createClient("Cliente Histórico");
+        Product product = createProduct("Produto Histórico", BigDecimal.ONE, BigDecimal.TEN, false);
+
+        String createBody = mvc.perform(post("/api/public/orders/{token}", client.getOrderToken())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"items\":[{\"productId\":\"" + product.getId() + "\",\"quantity\":1}]}"))
+            .andExpect(status().isCreated())
+            .andReturn().getResponse().getContentAsString();
+
+        String orderId = json(createBody).get("id").asText();
+        String missingSaleId = java.util.UUID.randomUUID().toString();
+
+        jdbcTemplate.update(
+            "update public.pedidos_cliente set status = 'CONVERTIDO', venda_id = ?::uuid where id = ?::uuid",
+            missingSaleId, orderId
+        );
+
+        mvc.perform(get("/api/orders").header("Authorization", bearer(sellerToken)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].id").value(orderId))
+            .andExpect(jsonPath("$[0].saleId").value(missingSaleId));
     }
 
     @Test

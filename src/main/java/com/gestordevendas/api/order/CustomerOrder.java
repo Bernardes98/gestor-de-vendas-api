@@ -37,9 +37,8 @@ public class CustomerOrder {
     @Column(name = "total", nullable = false, precision = 14, scale = 2)
     private BigDecimal total;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "venda_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
-    private Sale sale;
+    @Column(name = "venda_id")
+    private UUID saleId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "conversao_por", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
@@ -73,7 +72,7 @@ public class CustomerOrder {
     public Instant getViewedAt() { return viewedAt; }
     public String getNotes() { return notes; }
     public BigDecimal getTotal() { return total; }
-    public Sale getSale() { return sale; }
+    public UUID getSaleId() { return saleId; }
     public User getConversionUser() { return conversionUser; }
     public Instant getConversionStartedAt() { return conversionStartedAt; }
     public Instant getCreatedAt() { return createdAt; }
@@ -82,7 +81,7 @@ public class CustomerOrder {
     public void reject() { status = CustomerOrderStatus.RECUSADO; }
 
     public void convert(Sale sale, User user, Instant now) {
-        this.sale = sale;
+        this.saleId = sale.getId();
         this.status = CustomerOrderStatus.CONVERTIDO;
         this.conversionUser = user;
         this.conversionStartedAt = now == null ? Instant.now() : now;

@@ -7,13 +7,13 @@ import org.springframework.data.repository.query.Param;
 import java.util.*;
 
 public interface CustomerOrderRepository extends JpaRepository<CustomerOrder, UUID> {
-    @EntityGraph(attributePaths = {"company", "client", "sale", "conversionUser"})
+    @EntityGraph(attributePaths = {"company", "client", "conversionUser"})
     Optional<CustomerOrder> findByIdAndCompanyId(UUID id, UUID companyId);
 
-    @EntityGraph(attributePaths = {"company", "client", "sale", "conversionUser"})
+    @EntityGraph(attributePaths = {"company", "client", "conversionUser"})
     List<CustomerOrder> findAllByCompanyIdOrderByCreatedAtDesc(UUID companyId);
 
-    @EntityGraph(attributePaths = {"company", "client", "sale"})
+    @EntityGraph(attributePaths = {"company", "client"})
     Optional<CustomerOrder> findFirstByCompanyIdAndClientIdAndStatusInOrderByCreatedAtDesc(
         UUID companyId, UUID clientId, Collection<CustomerOrderStatus> statuses);
 
