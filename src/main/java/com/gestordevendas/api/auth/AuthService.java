@@ -116,9 +116,9 @@ public class AuthService {
 
         String newRawToken = secureTokenService.generateRawToken();
         RefreshToken replacement = RefreshToken.create(user, secureTokenService.hash(newRawToken),
-            now.plus(securityProperties.refreshTokenDays(), ChronoUnit.DAYS), userAgent, ipAddress);
-        refreshTokenRepository.save(replacement);
-        current.replaceWith(replacement, now);
+                now.plus(securityProperties.refreshTokenDays(), ChronoUnit.DAYS), userAgent, ipAddress);
+        RefreshToken savedReplacement = refreshTokenRepository.save(replacement);
+        current.replaceWith(savedReplacement, now);
         return new AuthSession(new AuthResponse(jwtService.issueAccessToken(user), securityProperties.accessTokenMinutes() * 60), newRawToken);
     }
 
