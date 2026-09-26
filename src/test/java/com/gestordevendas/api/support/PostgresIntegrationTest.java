@@ -27,10 +27,18 @@ public abstract class PostgresIntegrationTest {
 
     @BeforeEach
     void cleanDatabase() {
-        cleanupJdbcTemplate.execute(
-            "TRUNCATE TABLE auditoria, convites_usuario, convites_empresa, " +
-                "password_reset_tokens, refresh_tokens, empresa_usuarios, usuarios, empresas CASCADE"
-        );
+        cleanupJdbcTemplate.execute("""
+        TRUNCATE TABLE
+            api_internal.auditoria,
+            api_internal.convites_usuario,
+            api_internal.convites_empresa,
+            api_internal.password_reset_tokens,
+            api_internal.refresh_tokens,
+            public.empresa_usuarios,
+            api_internal.usuarios,
+            public.empresas
+        CASCADE
+        """);
     }
 
     @DynamicPropertySource
