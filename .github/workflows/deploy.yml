@@ -14,13 +14,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
           cache: maven
+
       - name: Verify
-        run: ./mvnw -B verify
+        run: |
+          sed -i 's/\r$//' mvnw
+          chmod +x mvnw
+          ./mvnw -B verify
 
   deploy:
     needs: verify
@@ -39,5 +44,6 @@ jobs:
           test "$fingerprint" = 'SHA256:Meq3/Ju52CkzCEAgH0pSu5qVUw2lHgzR1UaHmYkSpWc'
           cat ~/.ssh/host.tmp >> ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
+
       - name: Deploy API
         run: ssh -i ~/.ssh/id_ed25519 -p 22022 -o BatchMode=yes deploy@143.95.217.22 'sudo -n /usr/local/sbin/deploy-gestor-vendas-api'

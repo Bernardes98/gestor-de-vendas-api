@@ -2,9 +2,9 @@ spring:
   application:
     name: gestor-de-vendas-api
   datasource:
-    url: ${DB_URL}
-    username: ${DB_USER}
-    password: ${DB_PASSWORD}
+    url: "${DB_URL}"
+    username: "${DB_USER}"
+    password: "${DB_PASSWORD}"
   jpa:
     open-in-view: false
     hibernate:
@@ -20,31 +20,32 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include:
+          - health
+          - info
   endpoint:
     health:
       show-details: never
 
 app:
   security:
-    jwt-secret-base64: ${JWT_SECRET_BASE64:}
+    jwt-secret-base64: "${JWT_SECRET_BASE64:}"
     issuer: gestor-de-vendas-api
     access-token-minutes: 15
     refresh-token-days: 30
-    allowed-origins: ${APP_ALLOWED_ORIGINS:http://localhost:5173}
+    allowed-origins: "${APP_ALLOWED_ORIGINS:http://localhost:5173}"
   mail:
-    brevo-api-key: ${BREVO_API_KEY:}
-    from-email: ${MAIL_FROM_EMAIL:}
-    from-name: ${MAIL_FROM_NAME:Gestor de Vendas}
-    app-base-url: ${APP_BASE_URL:http://localhost:5173}
+    brevo-api-key: "${BREVO_API_KEY:}"
+    from-email: "${MAIL_FROM_EMAIL:}"
+    from-name: "${MAIL_FROM_NAME:Gestor de Vendas}"
+    app-base-url: "${APP_BASE_URL:http://localhost:5173}"
   storage:
     r2:
-      enabled: ${R2_ENABLED:false}
-      endpoint: ${R2_ENDPOINT:}
-      access-key-id: ${R2_ACCESS_KEY_ID:}
-      secret-access-key: ${R2_SECRET_ACCESS_KEY:}
-      bucket: ${R2_BUCKET:}
-      public-base-url: ${R2_PUBLIC_BASE_URL:}
-
+      enabled: "${R2_ENABLED:false}"
+      endpoint: "${R2_ENDPOINT:}"
+      access-key-id: "${R2_ACCESS_KEY_ID:}"
+      secret-access-key: "${R2_SECRET_ACCESS_KEY:}"
+      bucket: "${R2_BUCKET:}"
+      public-base-url: "${R2_PUBLIC_BASE_URL:}"
   business:
-    zone-id: ${BUSINESS_ZONE_ID:America/Sao_Paulo}
+    zone-id: "${BUSINESS_ZONE_ID:America/Sao_Paulo}"
