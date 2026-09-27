@@ -85,7 +85,8 @@ class SchemaIntegrationTest extends PostgresIntegrationTest {
                 select count(*)
                 from information_schema.table_constraints
                 where table_schema = 'public'
-                  and constraint_name = 'fk_produtos_categoria_empresa'
+                  and constraint_name = 'produtos_grupo_empresa_fk'
+                  and constraint_type = 'FOREIGN KEY'
                 """,
                 Integer.class
         )).isEqualTo(1);
@@ -95,10 +96,11 @@ class SchemaIntegrationTest extends PostgresIntegrationTest {
                 select count(*)
                 from information_schema.table_constraints
                 where table_schema = 'public'
-                  and constraint_name = 'fk_cliente_preco_cliente_empresa'
+                  and table_name = 'cliente_produto_preco'
+                  and constraint_type = 'FOREIGN KEY'
                 """,
                 Integer.class
-        )).isEqualTo(1);
+        )).isEqualTo(3);
 
         assertTokenHashColumnIsVarchar64("refresh_tokens");
         assertTokenHashColumnIsVarchar64("password_reset_tokens");
