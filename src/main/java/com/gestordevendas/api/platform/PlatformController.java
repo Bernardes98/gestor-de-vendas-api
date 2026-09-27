@@ -4,6 +4,7 @@ import com.gestordevendas.api.company.Company;
 import com.gestordevendas.api.audit.AuditQueryService;
 import com.gestordevendas.api.audit.AuditResponse;
 import com.gestordevendas.api.invite.CompanyInvite;
+import com.gestordevendas.api.user.CompanyRole;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -89,6 +90,35 @@ public class PlatformController {
         return platformService.listCompanyUsers(id);
     }
 
+    @PostMapping("/companies/{id}/users/invites")
+    ResponseEntity<UserInviteResponse> inviteUser(@PathVariable UUID id,
+                                                   @Valid @RequestBody CompanyUserInviteRequest request) {
+        var invite = platformService.inviteCompanyUser(id, request.email(), request.role());
+        URI location = ServletUriComponentsBuilder.fromCurrentRequest().path("/{inviteId}")
+            .buildAndExpand(invite.getId()).toUri();
+        return ResponseEntity.created(location).body(new UserInviteResponse(
+            invite.getId(), invite.getEmail(), invite.getRole(), invite.getExpiresAt()));
+    }
+
+    @PostMapping("/companies/{id}/users/link")
+    PlatformService.CompanyUserView linkExistingUser(@PathVariable UUID id,
+                                                       @Valid @RequestBody CompanyUserInviteRequest request) {
+        return platformService.linkExistingUser(id, request.email(), request.role());
+    }
+
+    @PatchMapping("/companies/{id}/users/{membershipId}")
+    PlatformService.CompanyUserView updateUser(@PathVariable UUID id,
+                                                @PathVariable UUID membershipId,
+                                                @Valid @RequestBody UpdateCompanyUserRequest request) {
+        return platformService.updateCompanyUser(id, membershipId, request.role(), request.active());
+    }
+
+    @DeleteMapping("/companies/{id}")
+    ResponseEntity<Void> deleteCompany(@PathVariable UUID id) {
+        platformService.deleteCompany(id);
+        return ResponseEntity.noContent().build();
+    }
+
 
     @GetMapping("/companies/{id}/audit")
     List<AuditResponse> audit(@PathVariable UUID id,
@@ -120,4 +150,10 @@ public class PlatformController {
     public record CompanySummaryResponse(UUID id, String name, String slug, boolean active, String ownerEmail,
                                          long userCount, long clientCount, long productCount, long saleCount) {}
     public record CompanyInviteResponse(UUID id, CompanyResponse company, String ownerEmail, Instant expiresAt) {}
+    public record CompanyUserInviteRequest(@NotBlank @Email String email, CompanyRole role) {}
+    public record UpdateCompanyUserRequest(
+        @jakarta.validation.constraints.NotNull CompanyRole role,
+        boolean active
+    ) {}
+    public record UserInviteResponse(UUID id, String email, CompanyRole role, Instant expiresAt) {}
 }

@@ -19,6 +19,10 @@ public interface CompanyMembershipRepository extends JpaRepository<CompanyMember
 
     boolean existsByCompanyIdAndUserId(UUID companyId, UUID userId);
 
+    Optional<CompanyMembership> findByCompanyIdAndUserId(UUID companyId, UUID userId);
+
+    Optional<CompanyMembership> findByIdAndCompanyId(UUID id, UUID companyId);
+
     @Query("select m from CompanyMembership m join fetch m.user where m.company.id = :companyId and m.active = true")
     List<CompanyMembership> findActiveByCompanyId(@Param("companyId") UUID companyId);
 

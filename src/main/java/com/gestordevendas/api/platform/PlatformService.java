@@ -11,12 +11,18 @@ import com.gestordevendas.api.company.CompanyRepository;
 import com.gestordevendas.api.invite.CompanyInvite;
 import com.gestordevendas.api.invite.CompanyInviteRepository;
 import com.gestordevendas.api.invite.InviteService;
+import com.gestordevendas.api.invite.UserInvite;
+import com.gestordevendas.api.invite.UserInviteRepository;
+import com.gestordevendas.api.mail.EmailSender;
+import com.gestordevendas.api.mail.MailProperties;
 import com.gestordevendas.api.product.ProductRepository;
 import com.gestordevendas.api.sale.SaleRepository;
 import com.gestordevendas.api.user.CompanyMembership;
 import com.gestordevendas.api.user.CompanyMembershipRepository;
 import com.gestordevendas.api.user.CompanyRole;
 import com.gestordevendas.api.user.User;
+import com.gestordevendas.api.user.UserRepository;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,6 +48,11 @@ public class PlatformService {
     private final ClientRepository clientRepository;
     private final ProductRepository productRepository;
     private final SaleRepository saleRepository;
+    private final UserInviteRepository userInviteRepository;
+    private final UserRepository userRepository;
+    private final EmailSender emailSender;
+    private final MailProperties mailProperties;
+    private final JdbcTemplate jdbcTemplate;
 
     public PlatformService(CurrentUserService currentUserService,
                            CompanyRepository companyRepository,
@@ -53,7 +64,12 @@ public class PlatformService {
                            AuditService auditService,
                            ClientRepository clientRepository,
                            ProductRepository productRepository,
-                           SaleRepository saleRepository) {
+                           SaleRepository saleRepository,
+                           UserInviteRepository userInviteRepository,
+                           UserRepository userRepository,
+                           EmailSender emailSender,
+                           MailProperties mailProperties,
+                           JdbcTemplate jdbcTemplate) {
         this.currentUserService = currentUserService;
         this.companyRepository = companyRepository;
         this.companyInviteRepository = companyInviteRepository;
@@ -65,6 +81,11 @@ public class PlatformService {
         this.clientRepository = clientRepository;
         this.productRepository = productRepository;
         this.saleRepository = saleRepository;
+        this.userInviteRepository = userInviteRepository;
+        this.userRepository = userRepository;
+        this.emailSender = emailSender;
+        this.mailProperties = mailProperties;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     @Transactional
@@ -120,6 +141,127 @@ public class PlatformService {
             "COMPANY", companyId, null, Map.of());
     }
 
+    @Transactional
+    public void deleteCompany(UUID companyId) {
+        User actor = requirePlatformAdmin();
+        Company company = companyRepository.findById(companyId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "COMPANY_NOT_FOUND", "Empresa não encontrada."));
+        if (company.isActive()) {
+            throw new ApiException(HttpStatus.CONFLICT, "COMPANY_MUST_BE_BLOCKED", "Bloqueie a empresa antes de excluí-la.");
+        }
+
+        String companyName = company.getName();
+        String companySlug = company.getSlug();
+
+        // Revoga sessões dos membros antes de remover seus vínculos com a empresa.
+        membershipRepository.findByCompanyIdOrderByCreatedAtAsc(companyId).stream()
+            .map(membership -> membership.getUser().getId())
+            .distinct()
+            .forEach(userId -> refreshTokenRepository.revokeAllActiveByUserId(userId, Instant.now()));
+
+        // Mantém o histórico de auditoria, sem a FK para a empresa que será removida.
+        jdbcTemplate.update("UPDATE api_internal.auditoria SET empresa_id = NULL WHERE empresa_id = ?", companyId);
+        jdbcTemplate.update("DELETE FROM api_internal.convites_empresa WHERE empresa_id = ?", companyId);
+        jdbcTemplate.update("DELETE FROM api_internal.convites_usuario WHERE empresa_id = ?", companyId);
+        jdbcTemplate.update("DELETE FROM api_internal.movimentacoes_estoque WHERE empresa_id = ?", companyId);
+        jdbcTemplate.update("DELETE FROM public.cliente_produto_preco WHERE empresa_id = ?", companyId);
+        jdbcTemplate.update("DELETE FROM public.cliente_produtos_ocultos WHERE empresa_id = ?", companyId);
+        jdbcTemplate.update("DELETE FROM public.compra_itens WHERE empresa_id = ?", companyId);
+        jdbcTemplate.update("DELETE FROM public.venda_itens WHERE empresa_id = ?", companyId);
+        jdbcTemplate.update("DELETE FROM public.venda_recebimentos WHERE empresa_id = ?", companyId);
+        jdbcTemplate.update("DELETE FROM public.recebivel_manual_pagamentos WHERE empresa_id = ?", companyId);
+        jdbcTemplate.update("DELETE FROM public.recebiveis_manuais WHERE empresa_id = ?", companyId);
+        jdbcTemplate.update("DELETE FROM public.pedidos_cliente WHERE empresa_id = ?", companyId);
+        jdbcTemplate.update("DELETE FROM public.vendas WHERE empresa_id = ?", companyId);
+        jdbcTemplate.update("DELETE FROM public.compras WHERE empresa_id = ?", companyId);
+        jdbcTemplate.update("DELETE FROM public.clientes WHERE empresa_id = ?", companyId);
+        jdbcTemplate.update("DELETE FROM public.produto_fotos WHERE empresa_id = ?", companyId);
+        jdbcTemplate.update("DELETE FROM public.produtos WHERE empresa_id = ?", companyId);
+        jdbcTemplate.update("DELETE FROM public.produto_grupos WHERE empresa_id = ?", companyId);
+        jdbcTemplate.update("DELETE FROM api_internal.venda_sequencias WHERE empresa_id = ?", companyId);
+
+        companyRepository.delete(company);
+        auditService.record("COMPANY_DELETED", null, actor.getId(), "COMPANY", companyId, null,
+            Map.of("name", companyName, "slug", companySlug));
+    }
+
+    @Transactional
+    public UserInvite inviteCompanyUser(UUID companyId, String email, CompanyRole requestedRole) {
+        User actor = requirePlatformAdmin();
+        Company company = requireCompany(companyId);
+        CompanyRole role = requestedRole == null ? CompanyRole.VENDEDOR : requestedRole;
+        if (role == CompanyRole.OWNER) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_ROLE", "Convites podem criar ADMIN ou VENDEDOR.");
+        }
+
+        String normalizedEmail = User.normalizeEmail(email);
+        if (userRepository.findByEmailIgnoreCase(normalizedEmail).isPresent()) {
+            throw new ApiException(HttpStatus.CONFLICT, "USER_ALREADY_EXISTS", "Este e-mail já possui uma conta. Use Vincular existente.");
+        }
+        if (!company.isActive()) {
+            throw new ApiException(HttpStatus.CONFLICT, "COMPANY_BLOCKED", "Ative a empresa antes de enviar convites.");
+        }
+
+        String rawToken = tokenService.generateRawToken();
+        UserInvite invite = UserInvite.create(company, normalizedEmail, role, tokenService.hash(rawToken),
+            Instant.now().plus(7, ChronoUnit.DAYS), actor);
+        userInviteRepository.save(invite);
+        String baseUrl = mailProperties.appBaseUrl() == null ? "" : mailProperties.appBaseUrl().replaceAll("/$", "");
+        emailSender.sendUserInvite(normalizedEmail, baseUrl + "/primeiro-acesso?token=" + rawToken + "&type=user");
+        auditService.record("USER_INVITED", companyId, actor.getId(), "USER_INVITE", invite.getId(), null,
+            Map.of("email", normalizedEmail, "role", role.name()));
+        return invite;
+    }
+
+    @Transactional
+    public CompanyUserView linkExistingUser(UUID companyId, String email, CompanyRole role) {
+        User actor = requirePlatformAdmin();
+        Company company = requireCompany(companyId);
+        String normalizedEmail = User.normalizeEmail(email);
+        User target = userRepository.findByEmailIgnoreCase(normalizedEmail)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Conta não encontrada. Envie um convite para este e-mail."));
+        if (!target.isActive()) {
+            throw new ApiException(HttpStatus.CONFLICT, "USER_BLOCKED", "Esta conta está desativada e não pode ser vinculada.");
+        }
+        if (!company.isActive()) {
+            throw new ApiException(HttpStatus.CONFLICT, "COMPANY_BLOCKED", "Ative a empresa antes de vincular usuários.");
+        }
+
+        CompanyMembership existing = membershipRepository.findByUserId(target.getId()).orElse(null);
+        if (existing != null) {
+            if (existing.getCompany().getId().equals(companyId)) {
+                throw new ApiException(HttpStatus.CONFLICT, "USER_ALREADY_LINKED", "Este usuário já está vinculado a esta empresa.");
+            }
+            throw new ApiException(HttpStatus.CONFLICT, "USER_ALREADY_LINKED_OTHER_COMPANY", "Este usuário já está vinculado a outra empresa.");
+        }
+
+        CompanyRole assignedRole = role == null ? CompanyRole.VENDEDOR : role;
+        CompanyMembership membership = membershipRepository.save(CompanyMembership.create(company, target, assignedRole));
+        auditService.record("USER_LINKED", companyId, actor.getId(), "USER", target.getId(), null,
+            Map.of("email", target.getEmail(), "role", assignedRole.name()));
+        return toCompanyUserView(membership);
+    }
+
+    @Transactional
+    public CompanyUserView updateCompanyUser(UUID companyId, UUID membershipId, CompanyRole role, boolean active) {
+        User actor = requirePlatformAdmin();
+        requireCompany(companyId);
+        CompanyMembership target = membershipRepository.findByIdAndCompanyId(membershipId, companyId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Vínculo de usuário não encontrado nesta empresa."));
+        CompanyRole nextRole = role == null ? target.getRole() : role;
+        if (target.isActive() && target.getRole() == CompanyRole.OWNER
+            && (!active || nextRole != CompanyRole.OWNER)
+            && membershipRepository.countActiveByCompanyIdAndRole(companyId, CompanyRole.OWNER) <= 1) {
+            throw new ApiException(HttpStatus.CONFLICT, "LAST_OWNER_REQUIRED", "A empresa precisa manter ao menos um OWNER ativo.");
+        }
+        target.setRole(nextRole);
+        target.setActive(active);
+        if (!active) refreshTokenRepository.revokeAllActiveByUserId(target.getUser().getId(), Instant.now());
+        auditService.record("PLATFORM_USER_UPDATED", companyId, actor.getId(), "USER", target.getUser().getId(), null,
+            Map.of("role", nextRole.name(), "active", active));
+        return toCompanyUserView(target);
+    }
+
     @Transactional(readOnly = true)
     public List<CompanySummaryView> listCompanySummaries() {
         requirePlatformAdmin();
@@ -149,19 +291,20 @@ public class PlatformService {
     @Transactional(readOnly = true)
     public List<CompanyUserView> listCompanyUsers(UUID companyId) {
         requirePlatformAdmin();
-        if (!companyRepository.existsById(companyId)) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "COMPANY_NOT_FOUND", "Empresa não encontrada.");
-        }
+        requireCompany(companyId);
         return membershipRepository.findByCompanyIdOrderByCreatedAtAsc(companyId).stream()
-            .map(membership -> new CompanyUserView(
-                membership.getId(),
-                membership.getUser().getId(),
-                membership.getUser().getName(),
-                membership.getUser().getEmail(),
-                membership.getRole(),
-                membership.isActive(),
-                membership.getCreatedAt()))
+            .map(this::toCompanyUserView)
             .toList();
+    }
+
+    private Company requireCompany(UUID companyId) {
+        return companyRepository.findById(companyId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "COMPANY_NOT_FOUND", "Empresa não encontrada."));
+    }
+
+    private CompanyUserView toCompanyUserView(CompanyMembership membership) {
+        return new CompanyUserView(membership.getId(), membership.getUser().getId(), membership.getUser().getName(),
+            membership.getUser().getEmail(), membership.getRole(), membership.isActive(), membership.getCreatedAt());
     }
 
     private User requirePlatformAdmin() {
