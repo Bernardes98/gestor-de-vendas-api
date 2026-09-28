@@ -15,7 +15,7 @@ public interface SaleRepository extends JpaRepository<Sale, UUID> {
     Optional<Sale> findByIdAndCompanyId(UUID id, UUID companyId);
 
     @EntityGraph(attributePaths = {"company", "client"})
-    List<Sale> findAllByCompanyIdOrderBySoldAtDesc(UUID companyId);
+    List<Sale> findAllByCompanyIdOrderByNumberDesc(UUID companyId);
 
     @Query(value = """
         select s.* from public.vendas s

@@ -78,7 +78,7 @@ public class SaleService {
     @Transactional(readOnly = true)
     public List<SaleResponse> list() {
         TenantContext context = currentTenant();
-        return repository.findAllByCompanyIdOrderBySoldAtDesc(context.companyId()).stream()
+        return repository.findAllByCompanyIdOrderByNumberDesc(context.companyId()).stream()
             .map(s -> response(s, context)).toList();
     }
 
