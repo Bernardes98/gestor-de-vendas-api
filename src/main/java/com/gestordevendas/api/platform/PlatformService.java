@@ -153,8 +153,11 @@ public class PlatformService {
         String companyName = company.getName();
         String companySlug = company.getSlug();
 
+        // Carrega os vínculos uma única vez. Eles ficam gerenciados pelo JPA durante a transação.
+        List<CompanyMembership> memberships = membershipRepository.findByCompanyIdOrderByCreatedAtAsc(companyId);
+
         // Revoga sessões dos membros antes de remover seus vínculos com a empresa.
-        membershipRepository.findByCompanyIdOrderByCreatedAtAsc(companyId).stream()
+        memberships.stream()
             .map(membership -> membership.getUser().getId())
             .distinct()
             .forEach(userId -> refreshTokenRepository.revokeAllActiveByUserId(userId, Instant.now()));
@@ -179,6 +182,11 @@ public class PlatformService {
         jdbcTemplate.update("DELETE FROM public.produtos WHERE empresa_id = ?", companyId);
         jdbcTemplate.update("DELETE FROM public.produto_grupos WHERE empresa_id = ?", companyId);
         jdbcTemplate.update("DELETE FROM api_internal.venda_sequencias WHERE empresa_id = ?", companyId);
+
+        // Remove e descarrega os vínculos gerenciados antes de excluir a empresa.
+        // Sem isso, o Hibernate tenta sincronizar memberships que ainda apontam para ela.
+        membershipRepository.deleteAll(memberships);
+        membershipRepository.flush();
 
         companyRepository.delete(company);
         auditService.record("COMPANY_DELETED", null, actor.getId(), "COMPANY", companyId, null,
