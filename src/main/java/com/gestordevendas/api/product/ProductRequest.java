@@ -18,5 +18,6 @@ public record ProductRequest(
     @NotNull @DecimalMin("0.00") @Digits(integer = 12, fraction = 2) BigDecimal costPrice,
     @NotNull @DecimalMin("0.00") @Digits(integer = 12, fraction = 2) BigDecimal salePrice,
     boolean stockControlled,
-    @DecimalMin("0.000") @Digits(integer = 11, fraction = 3) BigDecimal minimumStock
+    @DecimalMin("0.000") @Digits(integer = 11, fraction = 3) BigDecimal minimumStock,
+    Boolean active
 ) {}

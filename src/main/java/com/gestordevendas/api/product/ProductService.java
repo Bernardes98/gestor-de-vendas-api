@@ -48,14 +48,14 @@ public class ProductService {
     @Transactional(readOnly = true)
     public List<ProductResponse> list() {
         TenantContext context = currentTenant();
-        return repository.findAllByCompanyIdAndActiveTrueOrderByNameAsc(context.companyId()).stream()
+        return repository.findAllByCompanyIdOrderByNameAsc(context.companyId()).stream()
             .map(product -> response(product, context)).toList();
     }
 
     @Transactional(readOnly = true)
     public ProductResponse get(UUID id) {
         TenantContext context = currentTenant();
-        return response(requireActive(id, context.companyId()), context);
+        return response(requireProduct(id, context.companyId()), context);
     }
 
     @Transactional
@@ -73,7 +73,7 @@ public class ProductService {
     public ProductResponse update(UUID id, ProductRequest request) {
         TenantContext context = currentTenant();
         tenantGuard.requireOwnerOrAdmin(context);
-        Product product = requireActive(id, context.companyId());
+        Product product = requireProduct(id, context.companyId());
         apply(product, request, context.companyId());
         return response(product, context);
     }
@@ -83,6 +83,11 @@ public class ProductService {
         TenantContext context = currentTenant();
         tenantGuard.requireOwnerOrAdmin(context);
         requireActive(id, context.companyId()).setActive(false);
+    }
+
+    private Product requireProduct(UUID id, UUID companyId) {
+        return repository.findByIdAndCompanyId(id, companyId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PRODUCT_NOT_FOUND", "Produto não encontrado."));
     }
 
     public Product requireActive(UUID id, UUID companyId) {
@@ -99,6 +104,7 @@ public class ProductService {
         product.update(request.name(), request.code(), request.brand(), request.description(), category,
             request.costPrice(), request.salePrice(), request.stockControlled(),
             request.minimumStock() == null ? BigDecimal.ZERO : request.minimumStock());
+        if (request.active() != null) product.setActive(request.active());
     }
 
     private ProductResponse response(Product product, TenantContext context) {
@@ -112,7 +118,7 @@ public class ProductService {
         return new ProductResponse(product.getId(), product.getName(), product.getCode(), product.getBrand(), product.getDescription(),
             product.getCategory() == null ? null : product.getCategory().getId(),
             product.getCategory() == null ? null : product.getCategory().getName(), product.getSalePrice(),
-            product.isStockControlled(), product.getCurrentStock(), product.getMinimumStock(), canSeeCost ? product.getCostPrice() : null, margin, photos);
+            product.isStockControlled(), product.getCurrentStock(), product.getMinimumStock(), canSeeCost ? product.getCostPrice() : null, margin, product.isActive(), photos);
     }
 
     private BigDecimal margin(BigDecimal cost, BigDecimal sale) {

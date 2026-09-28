@@ -21,5 +21,6 @@ public record ProductResponse(
     BigDecimal minimumStock,
     BigDecimal costPrice,
     BigDecimal marginPercent,
+    boolean active,
     List<ProductPhotoResponse> photos
 ) {}
