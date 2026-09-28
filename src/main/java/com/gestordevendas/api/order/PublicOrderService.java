@@ -8,6 +8,7 @@ import com.gestordevendas.api.common.error.ApiException;
 import com.gestordevendas.api.pricing.ClientProductPrice;
 import com.gestordevendas.api.pricing.ClientProductPriceRepository;
 import com.gestordevendas.api.product.*;
+import com.gestordevendas.api.promotion.*;
 import com.gestordevendas.api.storage.ObjectStorage;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -26,16 +27,17 @@ public class PublicOrderService {
     private final ProductPhotoRepository photoRepository;
     private final ClientProductPriceRepository priceRepository;
     private final ClientHiddenProductRepository hiddenRepository;
+    private final ClientProductPromotionRepository promotionRepository;
     private final CustomerOrderRepository orderRepository;
     private final CustomerOrderItemRepository itemRepository;
     private final ObjectStorage objectStorage;
 
     public PublicOrderService(ClientRepository clientRepository, ProductRepository productRepository,
                               ProductCategoryRepository categoryRepository, ProductPhotoRepository photoRepository, ClientProductPriceRepository priceRepository,
-                              ClientHiddenProductRepository hiddenRepository, CustomerOrderRepository orderRepository,
+                              ClientHiddenProductRepository hiddenRepository, ClientProductPromotionRepository promotionRepository, CustomerOrderRepository orderRepository,
                               CustomerOrderItemRepository itemRepository, ObjectStorage objectStorage) {
         this.clientRepository = clientRepository; this.productRepository = productRepository; this.categoryRepository = categoryRepository; this.photoRepository = photoRepository;
-        this.priceRepository = priceRepository; this.hiddenRepository = hiddenRepository; this.orderRepository = orderRepository;
+        this.priceRepository = priceRepository; this.hiddenRepository = hiddenRepository; this.promotionRepository = promotionRepository; this.orderRepository = orderRepository;
         this.itemRepository = itemRepository; this.objectStorage = objectStorage;
     }
 
@@ -46,14 +48,21 @@ public class PublicOrderService {
             .map(v -> v.getProduct().getId()).collect(Collectors.toSet());
         Map<UUID, BigDecimal> prices = priceRepository.findAllByCompanyIdAndClientId(companyId, client.getId()).stream()
             .collect(Collectors.toMap(ClientProductPrice::getProductReferenceId, ClientProductPrice::getPrice));
+        Map<UUID, ClientProductPromotion> promotions = promotionRepository.findAllByCompany_IdAndClient_Id(companyId, client.getId()).stream()
+            .collect(Collectors.toMap(ClientProductPromotion::getProductId, Function.identity()));
         List<PublicOrderCatalogResponse.Group> groups = categoryRepository.findAllByCompanyIdOrderByOrderIndexAscNameAsc(companyId).stream()
             .map(group -> new PublicOrderCatalogResponse.Group(group.getId(), group.getName(), group.getOrderIndex()))
             .toList();
         List<PublicOrderCatalogResponse.Product> products = productRepository.findAllByCompanyIdAndActiveTrueOrderByNameAsc(companyId).stream()
             .filter(product -> !hidden.contains(product.getId()))
-            .map(product -> new PublicOrderCatalogResponse.Product(product.getId(), product.getName(), product.getBrand(), product.getCode(),
-                prices.getOrDefault(product.getId(), product.getSalePrice()), photoUrls(companyId, product.getId()),
-                product.getCategory() == null ? null : product.getCategory().getId()))
+            .map(product -> {
+                ClientProductPromotion promotion = promotions.get(product.getId());
+                return new PublicOrderCatalogResponse.Product(product.getId(), product.getName(), product.getBrand(), product.getCode(),
+                    prices.getOrDefault(product.getId(), product.getSalePrice()),
+                    promotion == null ? null : promotion.getPromotionalPrice(),
+                    promotion == null ? null : promotion.getMinimumQuantity(),
+                    photoUrls(companyId, product.getId()), product.getCategory() == null ? null : product.getCategory().getId());
+            })
             .toList();
         String logo = client.getCompany().getLogoKey() == null ? null : objectStorage.publicUrl(client.getCompany().getLogoKey());
         return new PublicOrderCatalogResponse(client.getCompany().getName(), logo, client.getCompany().getPrimaryColor(),
@@ -93,6 +102,10 @@ public class PublicOrderService {
         }
         BigDecimal price = priceRepository.findByCompanyIdAndClientIdAndProductId(companyId, client.getId(), product.getId())
             .map(ClientProductPrice::getPrice).orElse(product.getSalePrice()).setScale(2, RoundingMode.HALF_UP);
+        Optional<ClientProductPromotion> promotion = promotionRepository.findByCompany_IdAndClient_IdAndProduct_Id(companyId, client.getId(), product.getId());
+        if (promotion.isPresent() && request.quantity().compareTo(promotion.get().getMinimumQuantity()) >= 0) {
+            price = promotion.get().getPromotionalPrice().setScale(2, RoundingMode.HALF_UP);
+        }
         BigDecimal total = price.multiply(request.quantity()).setScale(2, RoundingMode.HALF_UP);
         return new PreparedItem(product, request.quantity(), price, total);
     }
