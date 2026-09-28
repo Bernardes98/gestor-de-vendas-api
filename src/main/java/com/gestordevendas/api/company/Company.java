@@ -91,4 +91,23 @@ public class Company {
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
     public void setLogoKey(String logoKey) { this.logoKey = logoKey; }
+
+    public void updateSettings(String name, String legalName, String document, String phone, String email,
+                               String address, String city, String primaryColor, String secondaryColor) {
+        this.name = name.trim();
+        this.legalName = blankToNull(legalName);
+        this.document = blankToNull(document);
+        this.telefone = blankToNull(phone);
+        this.email = blankToNull(email);
+        this.endereco = blankToNull(address);
+        this.cidade = blankToNull(city);
+        this.primaryColor = primaryColor;
+        this.secondaryColor = secondaryColor;
+    }
+
+    private static String blankToNull(String value) {
+        if (value == null) return null;
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
 }
