@@ -2,6 +2,8 @@ package com.gestordevendas.api.order;
 
 import com.gestordevendas.api.client.Client;
 import com.gestordevendas.api.client.ClientRepository;
+import com.gestordevendas.api.category.ProductCategory;
+import com.gestordevendas.api.category.ProductCategoryRepository;
 import com.gestordevendas.api.common.error.ApiException;
 import com.gestordevendas.api.pricing.ClientProductPrice;
 import com.gestordevendas.api.pricing.ClientProductPriceRepository;
@@ -20,6 +22,7 @@ import java.util.stream.Collectors;
 public class PublicOrderService {
     private final ClientRepository clientRepository;
     private final ProductRepository productRepository;
+    private final ProductCategoryRepository categoryRepository;
     private final ProductPhotoRepository photoRepository;
     private final ClientProductPriceRepository priceRepository;
     private final ClientHiddenProductRepository hiddenRepository;
@@ -28,10 +31,10 @@ public class PublicOrderService {
     private final ObjectStorage objectStorage;
 
     public PublicOrderService(ClientRepository clientRepository, ProductRepository productRepository,
-                              ProductPhotoRepository photoRepository, ClientProductPriceRepository priceRepository,
+                              ProductCategoryRepository categoryRepository, ProductPhotoRepository photoRepository, ClientProductPriceRepository priceRepository,
                               ClientHiddenProductRepository hiddenRepository, CustomerOrderRepository orderRepository,
                               CustomerOrderItemRepository itemRepository, ObjectStorage objectStorage) {
-        this.clientRepository = clientRepository; this.productRepository = productRepository; this.photoRepository = photoRepository;
+        this.clientRepository = clientRepository; this.productRepository = productRepository; this.categoryRepository = categoryRepository; this.photoRepository = photoRepository;
         this.priceRepository = priceRepository; this.hiddenRepository = hiddenRepository; this.orderRepository = orderRepository;
         this.itemRepository = itemRepository; this.objectStorage = objectStorage;
     }
@@ -43,14 +46,18 @@ public class PublicOrderService {
             .map(v -> v.getProduct().getId()).collect(Collectors.toSet());
         Map<UUID, BigDecimal> prices = priceRepository.findAllByCompanyIdAndClientId(companyId, client.getId()).stream()
             .collect(Collectors.toMap(ClientProductPrice::getProductReferenceId, ClientProductPrice::getPrice));
+        List<PublicOrderCatalogResponse.Group> groups = categoryRepository.findAllByCompanyIdOrderByOrderIndexAscNameAsc(companyId).stream()
+            .map(group -> new PublicOrderCatalogResponse.Group(group.getId(), group.getName(), group.getOrderIndex()))
+            .toList();
         List<PublicOrderCatalogResponse.Product> products = productRepository.findAllByCompanyIdAndActiveTrueOrderByNameAsc(companyId).stream()
             .filter(product -> !hidden.contains(product.getId()))
             .map(product -> new PublicOrderCatalogResponse.Product(product.getId(), product.getName(), product.getBrand(), product.getCode(),
-                prices.getOrDefault(product.getId(), product.getSalePrice()), photoUrls(companyId, product.getId())))
+                prices.getOrDefault(product.getId(), product.getSalePrice()), photoUrls(companyId, product.getId()),
+                product.getCategory() == null ? null : product.getCategory().getId()))
             .toList();
         String logo = client.getCompany().getLogoKey() == null ? null : objectStorage.publicUrl(client.getCompany().getLogoKey());
         return new PublicOrderCatalogResponse(client.getCompany().getName(), logo, client.getCompany().getPrimaryColor(),
-            client.getCompany().getSecondaryColor(), client.getName(), products);
+            client.getCompany().getSecondaryColor(), client.getName(), groups, products);
     }
 
     @Transactional

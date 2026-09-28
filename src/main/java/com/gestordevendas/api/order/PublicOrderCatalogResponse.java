@@ -6,7 +6,8 @@ import java.util.UUID;
 
 public record PublicOrderCatalogResponse(
     String companyName, String companyLogoUrl, String primaryColor, String secondaryColor,
-    String clientName, List<Product> products
+    String clientName, List<Group> productGroups, List<Product> products
 ) {
-    public record Product(UUID id, String name, String brand, String sku, BigDecimal price, List<String> photoUrls) {}
+    public record Group(UUID id, String name, int order) {}
+    public record Product(UUID id, String name, String brand, String sku, BigDecimal price, List<String> photoUrls, UUID groupId) {}
 }
