@@ -37,7 +37,7 @@ public class ClientProductPriceService {
     public ProductPriceResponse get(UUID clientId, UUID productId) {
         TenantContext context = currentTenant();
         clientService.requireActive(clientId, context.companyId());
-        Product product = productService.requireActive(productId, context.companyId());
+        Product product = productService.requireProduct(productId, context.companyId());
         return repository.findByCompanyIdAndClientIdAndProductId(context.companyId(), clientId, productId)
             .map(value -> new ProductPriceResponse(clientId, productId, value.getPrice(), true))
             .orElseGet(() -> new ProductPriceResponse(clientId, productId, product.getSalePrice(), false));
@@ -48,7 +48,7 @@ public class ClientProductPriceService {
         TenantContext context = currentTenant();
         tenantGuard.requireOwnerOrAdmin(context);
         Client client = clientService.requireActive(clientId, context.companyId());
-        Product product = productService.requireActive(productId, context.companyId());
+        Product product = productService.requireProduct(productId, context.companyId());
         ClientProductPrice value = repository.findByCompanyIdAndClientIdAndProductId(context.companyId(), clientId, productId)
             .orElseGet(() -> ClientProductPrice.create(client.getCompany(), client, product, request.price()));
         value.setPrice(request.price());
@@ -61,7 +61,7 @@ public class ClientProductPriceService {
         TenantContext context = currentTenant();
         tenantGuard.requireOwnerOrAdmin(context);
         clientService.requireActive(clientId, context.companyId());
-        productService.requireActive(productId, context.companyId());
+        productService.requireProduct(productId, context.companyId());
         repository.deleteByCompanyIdAndClientIdAndProductId(context.companyId(), clientId, productId);
     }
 

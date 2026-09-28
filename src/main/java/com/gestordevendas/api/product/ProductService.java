@@ -85,7 +85,7 @@ public class ProductService {
         requireActive(id, context.companyId()).setActive(false);
     }
 
-    private Product requireProduct(UUID id, UUID companyId) {
+    public Product requireProduct(UUID id, UUID companyId) {
         return repository.findByIdAndCompanyId(id, companyId)
             .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PRODUCT_NOT_FOUND", "Produto não encontrado."));
     }
