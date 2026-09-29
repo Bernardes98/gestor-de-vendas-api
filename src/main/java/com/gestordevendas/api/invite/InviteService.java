@@ -116,7 +116,7 @@ public class InviteService {
 
     public void sendCompanyInvite(CompanyInvite invite, String rawToken) {
         String url = baseUrl() + "/primeiro-acesso?token=" + rawToken + "&type=company";
-        emailSender.sendCompanyInvite(invite.getOwnerEmail(), url);
+        emailSender.sendCompanyInvite(invite.getOwnerEmail(), invite.getCompany().getName(), url);
     }
 
     private String baseUrl() {
