@@ -8,5 +8,5 @@ import java.util.UUID;
 
 public interface CustomerOrderItemRepository extends JpaRepository<CustomerOrderItem, UUID> {
     @EntityGraph(attributePaths = "product")
-    List<CustomerOrderItem> findAllByCompanyIdAndOrderIdOrderByCreatedAtAsc(UUID companyId, UUID orderId);
+    List<CustomerOrderItem> findAllByCompanyIdAndOrderIdOrderByPositionAsc(UUID companyId, UUID orderId);
 }

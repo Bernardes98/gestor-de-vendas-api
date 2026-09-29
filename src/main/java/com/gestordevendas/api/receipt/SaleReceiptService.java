@@ -44,7 +44,7 @@ public class SaleReceiptService {
             company.getDocument(), company.getPhone(), company.getEmail(), company.getAddress(), company.getCity(), logo);
         SaleReceiptResponse.ClientInfo clientInfo = client == null ? null : new SaleReceiptResponse.ClientInfo(client.getName(), client.getDocument(),
             client.getPhone(), client.getAddress(), client.getCity());
-        List<SaleReceiptResponse.Item> items = itemRepository.findAllByCompanyIdAndSaleId(context.companyId(), saleId).stream()
+        List<SaleReceiptResponse.Item> items = itemRepository.findAllByCompanyIdAndSaleIdOrderByPositionAsc(context.companyId(), saleId).stream()
             .map(item -> new SaleReceiptResponse.Item(item.getProductName(), item.getQuantity(), item.getUnitPrice(), item.getLineTotal())).toList();
         return new SaleReceiptResponse(companyInfo, clientInfo, sale.getNumber(), sale.getSoldAt(), paymentType,
             sale.getTotal(), paid, outstanding, items);

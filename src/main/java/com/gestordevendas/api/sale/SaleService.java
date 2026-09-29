@@ -127,7 +127,7 @@ public class SaleService {
         }
         Client client = requireClient(request.clientId(), context.companyId());
         Company company = companyRepository.findById(context.companyId()).orElseThrow();
-        List<SaleItem> oldItems = itemRepository.findAllByCompanyIdAndSaleId(context.companyId(), id);
+        List<SaleItem> oldItems = itemRepository.findAllByCompanyIdAndSaleIdOrderByPositionAsc(context.companyId(), id);
         List<SaleItem> newItems = buildItems(request.items(), context, company, sale, client);
         BigDecimal newTotal = newItems.stream().map(SaleItem::getLineTotal).reduce(BigDecimal.ZERO, BigDecimal::add);
         if (request.paymentType() == SalePaymentType.PRAZO && newTotal.compareTo(paid) < 0) {
@@ -158,7 +158,7 @@ public class SaleService {
         TenantContext context = currentTenant();
         tenantGuard.requireOwnerOrAdmin(context);
         Sale sale = requireActive(id, context.companyId());
-        List<SaleItem> items = itemRepository.findAllByCompanyIdAndSaleId(context.companyId(), id);
+        List<SaleItem> items = itemRepository.findAllByCompanyIdAndSaleIdOrderByPositionAsc(context.companyId(), id);
         for (SaleItem item : items.stream().filter(SaleItem::isStockMoved)
             .sorted(Comparator.comparing(i -> i.getProduct().getId())).toList()) {
             stockService.applyDelta(context, item.getProduct(), item.getQuantity(), StockMovementType.VENDA_REVERSAO,
@@ -253,7 +253,8 @@ public class SaleService {
     }
 
     private List<SaleItem> buildItems(List<SaleItemRequest> requests, TenantContext context, Company company, Sale sale, Client client) {
-        return requests.stream().map(r -> {
+        return java.util.stream.IntStream.range(0, requests.size()).mapToObj(position -> {
+            SaleItemRequest r = requests.get(position);
             Product product = productRepository.findByIdAndCompanyIdAndActiveTrue(r.productId(), context.companyId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PRODUCT_NOT_FOUND", "Produto não encontrado."));
             BigDecimal price = r.unitPrice();
@@ -264,7 +265,7 @@ public class SaleService {
             if (price == null) price = product.getSalePrice();
             BigDecimal lineTotal = money(price.multiply(r.quantity()));
             BigDecimal lineCost = money(product.getCostPrice().multiply(r.quantity()));
-            return SaleItem.create(company, sale, product, r.quantity(), money(price), money(product.getCostPrice()), lineTotal, lineCost);
+            return SaleItem.create(company, sale, product, r.quantity(), money(price), money(product.getCostPrice()), lineTotal, lineCost, position);
         }).toList();
     }
 
@@ -311,7 +312,7 @@ public class SaleService {
     }
 
     private SaleResponse response(Sale sale, TenantContext context) {
-        return response(sale, itemRepository.findAllByCompanyIdAndSaleId(context.companyId(), sale.getId()), context);
+        return response(sale, itemRepository.findAllByCompanyIdAndSaleIdOrderByPositionAsc(context.companyId(), sale.getId()), context);
     }
 
     private SaleResponse response(Sale sale, List<SaleItem> items, TenantContext context) {

@@ -154,7 +154,7 @@ public class CustomerOrderService {
 
     private CustomerOrderResponse response(CustomerOrder order, UUID companyId) {
         return PublicOrderService.response(order,
-            itemRepository.findAllByCompanyIdAndOrderIdOrderByCreatedAtAsc(companyId, order.getId()));
+            itemRepository.findAllByCompanyIdAndOrderIdOrderByPositionAsc(companyId, order.getId()));
     }
 
     private TenantContext currentTenant() {

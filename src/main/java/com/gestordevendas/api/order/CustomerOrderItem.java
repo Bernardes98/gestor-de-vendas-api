@@ -19,18 +19,20 @@ public class CustomerOrderItem {
     @Column(name = "quantidade", nullable = false, precision = 14, scale = 3) private BigDecimal quantity;
     @Column(name = "preco_unitario", nullable = false, precision = 14, scale = 2) private BigDecimal unitPrice;
     @Column(name = "total", nullable = false, precision = 14, scale = 2) private BigDecimal lineTotal;
+    @Column(name = "posicao", nullable = false) private int position;
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false) private Instant createdAt;
 
     protected CustomerOrderItem() {}
 
     public static CustomerOrderItem create(Company company, CustomerOrder order, Product product,
-                                           BigDecimal quantity, BigDecimal unitPrice, BigDecimal lineTotal) {
+                                           BigDecimal quantity, BigDecimal unitPrice, BigDecimal lineTotal, int position) {
         CustomerOrderItem item = new CustomerOrderItem();
         item.id = UUID.randomUUID(); item.company = company; item.order = order; item.product = product;
-        item.productName = product.getName(); item.quantity = quantity; item.unitPrice = unitPrice; item.lineTotal = lineTotal;
+        item.productName = product.getName(); item.quantity = quantity; item.unitPrice = unitPrice; item.lineTotal = lineTotal; item.position = position;
         return item;
     }
 
+    public int getPosition() { return position; }
     public UUID getId() { return id; }
     public Product getProduct() { return product; }
     public String getProductName() { return productName; }

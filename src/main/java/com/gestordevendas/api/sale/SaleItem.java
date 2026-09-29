@@ -25,6 +25,9 @@ public class SaleItem {
     @JoinColumn(name = "produto_id", nullable = false)
     private Product product;
 
+    @Column(name = "posicao", nullable = false)
+    private int position;
+
     @Column(name = "produto_nome")
     private String productName;
 
@@ -49,9 +52,10 @@ public class SaleItem {
     protected SaleItem() {}
 
     public static SaleItem create(Company company, Sale sale, Product product, BigDecimal quantity,
-                                  BigDecimal unitPrice, BigDecimal unitCost, BigDecimal lineTotal, BigDecimal lineCost) {
+                                  BigDecimal unitPrice, BigDecimal unitCost, BigDecimal lineTotal, BigDecimal lineCost, int position) {
         SaleItem item = new SaleItem();
         item.id = UUID.randomUUID();
+        item.position = position;
         item.company = company;
         item.sale = sale;
         item.product = product;
@@ -65,6 +69,7 @@ public class SaleItem {
         return item;
     }
 
+    public int getPosition() { return position; }
     public UUID getId() { return id; }
     public Product getProduct() { return product; }
     public String getProductName() { return productName == null ? product.getName() : productName; }

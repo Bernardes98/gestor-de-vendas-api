@@ -8,6 +8,6 @@ import java.util.UUID;
 
 public interface SaleItemRepository extends JpaRepository<SaleItem, UUID> {
     @EntityGraph(attributePaths = {"product"})
-    List<SaleItem> findAllByCompanyIdAndSaleId(UUID companyId, UUID saleId);
+    List<SaleItem> findAllByCompanyIdAndSaleIdOrderByPositionAsc(UUID companyId, UUID saleId);
     void deleteAllByCompanyIdAndSaleId(UUID companyId, UUID saleId);
 }

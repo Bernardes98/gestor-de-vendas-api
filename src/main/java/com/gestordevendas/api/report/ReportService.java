@@ -66,7 +66,7 @@ public class ReportService {
 
         Map<UUID, DashboardOverviewResponse.ItemSold> sold = new HashMap<>();
         for (Sale sale : todaySales) {
-            for (SaleItem item : itemRepository.findAllByCompanyIdAndSaleId(context.companyId(), sale.getId())) {
+            for (SaleItem item : itemRepository.findAllByCompanyIdAndSaleIdOrderByPositionAsc(context.companyId(), sale.getId())) {
                 UUID productId = item.getProduct().getId();
                 DashboardOverviewResponse.ItemSold previous = sold.get(productId);
                 BigDecimal quantity = item.getQuantity().add(previous == null ? BigDecimal.ZERO : previous.quantity());

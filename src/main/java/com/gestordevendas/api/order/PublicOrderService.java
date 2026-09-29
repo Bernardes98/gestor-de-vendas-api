@@ -78,8 +78,11 @@ public class PublicOrderService {
         List<PreparedItem> prepared = request.items().stream().map(item -> prepare(client, item)).toList();
         BigDecimal total = prepared.stream().map(PreparedItem::lineTotal).reduce(BigDecimal.ZERO, BigDecimal::add).setScale(2, RoundingMode.HALF_UP);
         CustomerOrder order = orderRepository.save(CustomerOrder.create(client.getCompany(), client, request.notes(), total));
-        List<CustomerOrderItem> items = prepared.stream().map(value -> CustomerOrderItem.create(client.getCompany(), order,
-            value.product(), value.quantity(), value.unitPrice(), value.lineTotal())).toList();
+        List<CustomerOrderItem> items = java.util.stream.IntStream.range(0, prepared.size()).mapToObj(position -> {
+            PreparedItem value = prepared.get(position);
+            return CustomerOrderItem.create(client.getCompany(), order, value.product(), value.quantity(),
+                value.unitPrice(), value.lineTotal(), position);
+        }).toList();
         itemRepository.saveAll(items);
         return response(order, items);
     }
@@ -99,10 +102,13 @@ public class PublicOrderService {
         List<PreparedItem> prepared = request.items().stream().map(item -> prepare(client, item)).toList();
         BigDecimal total = prepared.stream().map(PreparedItem::lineTotal).reduce(BigDecimal.ZERO, BigDecimal::add).setScale(2, RoundingMode.HALF_UP);
         order.updatePending(request.notes(), total);
-        itemRepository.deleteAll(itemRepository.findAllByCompanyIdAndOrderIdOrderByCreatedAtAsc(companyId, order.getId()));
+        itemRepository.deleteAll(itemRepository.findAllByCompanyIdAndOrderIdOrderByPositionAsc(companyId, order.getId()));
         itemRepository.flush();
-        List<CustomerOrderItem> items = prepared.stream().map(value -> CustomerOrderItem.create(client.getCompany(), order,
-            value.product(), value.quantity(), value.unitPrice(), value.lineTotal())).toList();
+        List<CustomerOrderItem> items = java.util.stream.IntStream.range(0, prepared.size()).mapToObj(position -> {
+            PreparedItem value = prepared.get(position);
+            return CustomerOrderItem.create(client.getCompany(), order, value.product(), value.quantity(),
+                value.unitPrice(), value.lineTotal(), position);
+        }).toList();
         itemRepository.saveAll(items);
         return response(orderRepository.save(order), items);
     }
@@ -112,7 +118,7 @@ public class PublicOrderService {
         Client client = requirePublicClient(token);
         return orderRepository.findFirstByCompanyIdAndClientIdAndStatusInOrderByCreatedAtDesc(client.getCompany().getId(), client.getId(),
                 List.of(CustomerOrderStatus.PENDENTE, CustomerOrderStatus.CONVERTIDO))
-            .map(order -> response(order, itemRepository.findAllByCompanyIdAndOrderIdOrderByCreatedAtAsc(client.getCompany().getId(), order.getId())))
+            .map(order -> response(order, itemRepository.findAllByCompanyIdAndOrderIdOrderByPositionAsc(client.getCompany().getId(), order.getId())))
             .orElse(null);
     }
 

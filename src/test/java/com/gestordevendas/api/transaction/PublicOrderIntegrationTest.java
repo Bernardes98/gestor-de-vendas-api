@@ -114,6 +114,58 @@ class PublicOrderIntegrationTest extends BusinessIntegrationTestSupport {
 
 
     @Test
+    void itemOrderSurvivesPublicEditSaleAndReceiptReloads() throws Exception {
+        Client client = createClient("Cliente Ordem");
+        Product first = createProduct("A", BigDecimal.ONE, BigDecimal.TEN, false);
+        Product second = createProduct("B", BigDecimal.ONE, BigDecimal.TEN, false);
+        Product third = createProduct("C", BigDecimal.ONE, BigDecimal.TEN, false);
+        String orderBody = mvc.perform(post("/api/public/orders/{token}", client.getOrderToken())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"items\":[{\"productId\":\"" + third.getId() + "\",\"quantity\":1},"
+                    + "{\"productId\":\"" + first.getId() + "\",\"quantity\":1}]}"))
+            .andExpect(status().isCreated())
+            .andReturn().getResponse().getContentAsString();
+        String orderId = json(orderBody).get("id").asText();
+
+        mvc.perform(put("/api/public/orders/{token}/{id}", client.getOrderToken(), orderId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"items\":[{\"productId\":\"" + second.getId() + "\",\"quantity\":1},"
+                    + "{\"productId\":\"" + third.getId() + "\",\"quantity\":1}]}"))
+            .andExpect(status().isOk());
+        mvc.perform(get("/api/orders/{id}", orderId).header("Authorization", bearer(sellerToken)))
+            .andExpect(jsonPath("$.items[0].productId").value(second.getId().toString()))
+            .andExpect(jsonPath("$.items[1].productId").value(third.getId().toString()));
+        mvc.perform(get("/api/public/orders/{token}/recent", client.getOrderToken()))
+            .andExpect(jsonPath("$.items[0].productId").value(second.getId().toString()));
+
+        String saleBody = mvc.perform(post("/api/sales")
+                .header("Authorization", bearer(sellerToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"clientId\":\"" + client.getId() + "\",\"paymentType\":\"AVISTA\",\"items\":["
+                    + "{\"productId\":\"" + second.getId() + "\",\"quantity\":1},"
+                    + "{\"productId\":\"" + third.getId() + "\",\"quantity\":1}]}"))
+            .andExpect(status().isCreated())
+            .andReturn().getResponse().getContentAsString();
+        String saleId = json(saleBody).get("id").asText();
+        mvc.perform(get("/api/sales/{id}", saleId).header("Authorization", bearer(sellerToken)))
+            .andExpect(jsonPath("$.items[0].productId").value(second.getId().toString()))
+            .andExpect(jsonPath("$.items[1].productId").value(third.getId().toString()));
+        mvc.perform(get("/api/sales/{id}/receipt", saleId).header("Authorization", bearer(sellerToken)))
+            .andExpect(jsonPath("$.items[0].productName").value("B"))
+            .andExpect(jsonPath("$.items[1].productName").value("C"));
+        mvc.perform(put("/api/sales/{id}", saleId)
+                .header("Authorization", bearer(adminToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"clientId\":\"" + client.getId() + "\",\"paymentType\":\"AVISTA\",\"items\":["
+                    + "{\"productId\":\"" + third.getId() + "\",\"quantity\":1},"
+                    + "{\"productId\":\"" + second.getId() + "\",\"quantity\":1}]}"))
+            .andExpect(status().isOk());
+        mvc.perform(get("/api/sales/{id}/receipt", saleId).header("Authorization", bearer(sellerToken)))
+            .andExpect(jsonPath("$.items[0].productName").value("C"))
+            .andExpect(jsonPath("$.items[1].productName").value("B"));
+    }
+
+    @Test
     void orderListKeepsHistoricalMissingSaleIdWithoutFailing() throws Exception {
         Client client = createClient("Cliente Histórico");
         Product product = createProduct("Produto Histórico", BigDecimal.ONE, BigDecimal.TEN, false);
