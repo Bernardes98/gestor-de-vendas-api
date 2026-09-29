@@ -47,5 +47,6 @@ app:
       secret-access-key: "${R2_SECRET_ACCESS_KEY:}"
       bucket: "${R2_BUCKET:}"
       public-base-url: "${R2_PUBLIC_BASE_URL:}"
+      database-public-base-url: "${MEDIA_PUBLIC_BASE_URL:http://localhost:8080}"
   business:
     zone-id: "${BUSINESS_ZONE_ID:America/Sao_Paulo}"

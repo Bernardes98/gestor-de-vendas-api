@@ -15,8 +15,10 @@ import java.net.URI;
 @EnableConfigurationProperties(R2Properties.class)
 public class StorageConfig {
     @Bean
-    ObjectStorage objectStorage(R2Properties properties) {
-        if (!properties.enabled()) return new DisabledObjectStorage(properties);
+    ObjectStorage objectStorage(R2Properties properties, DatabaseStoredObjectRepository databaseRepository) {
+        if (!properties.enabled()) {
+            return new DatabaseObjectStorage(databaseRepository, properties.databasePublicBaseUrl());
+        }
         require(properties.endpoint(), "R2_ENDPOINT");
         require(properties.accessKeyId(), "R2_ACCESS_KEY_ID");
         require(properties.secretAccessKey(), "R2_SECRET_ACCESS_KEY");

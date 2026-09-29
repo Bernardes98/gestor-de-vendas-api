@@ -9,5 +9,6 @@ public record R2Properties(
     String accessKeyId,
     String secretAccessKey,
     String bucket,
-    String publicBaseUrl
+    String publicBaseUrl,
+    String databasePublicBaseUrl
 ) {}
