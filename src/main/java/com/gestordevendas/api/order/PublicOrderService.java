@@ -84,6 +84,29 @@ public class PublicOrderService {
         return response(order, items);
     }
 
+    @Transactional
+    public CustomerOrderResponse update(String token, UUID orderId, PublicOrderRequest request) {
+        Client client = requirePublicClient(token);
+        UUID companyId = client.getCompany().getId();
+        CustomerOrder order = orderRepository.findByIdAndCompanyIdAndClientId(orderId, companyId, client.getId())
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "ORDER_NOT_FOUND", "Pedido não encontrado."));
+        if (order.getStatus() != CustomerOrderStatus.PENDENTE) {
+            throw new ApiException(HttpStatus.CONFLICT, "ORDER_NOT_EDITABLE", "Este pedido não pode mais ser editado.");
+        }
+        if (request.items().stream().map(PublicOrderRequest.Item::productId).distinct().count() != request.items().size()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "DUPLICATE_PRODUCT", "Produto duplicado no pedido.");
+        }
+        List<PreparedItem> prepared = request.items().stream().map(item -> prepare(client, item)).toList();
+        BigDecimal total = prepared.stream().map(PreparedItem::lineTotal).reduce(BigDecimal.ZERO, BigDecimal::add).setScale(2, RoundingMode.HALF_UP);
+        order.updatePending(request.notes(), total);
+        itemRepository.deleteAll(itemRepository.findAllByCompanyIdAndOrderIdOrderByCreatedAtAsc(companyId, order.getId()));
+        itemRepository.flush();
+        List<CustomerOrderItem> items = prepared.stream().map(value -> CustomerOrderItem.create(client.getCompany(), order,
+            value.product(), value.quantity(), value.unitPrice(), value.lineTotal())).toList();
+        itemRepository.saveAll(items);
+        return response(orderRepository.save(order), items);
+    }
+
     @Transactional(readOnly = true)
     public CustomerOrderResponse recent(String token) {
         Client client = requirePublicClient(token);

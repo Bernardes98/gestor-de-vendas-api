@@ -20,4 +20,8 @@ public class PublicOrderController {
         CustomerOrderResponse response = service.create(token, request);
         return ResponseEntity.created(URI.create("/api/orders/" + response.id())).body(response);
     }
+    @PutMapping("/{orderId}") public CustomerOrderResponse update(@PathVariable String token, @PathVariable java.util.UUID orderId,
+                                                                  @Valid @RequestBody PublicOrderRequest request) {
+        return service.update(token, orderId, request);
+    }
 }

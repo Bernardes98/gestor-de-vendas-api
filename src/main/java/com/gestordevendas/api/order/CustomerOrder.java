@@ -77,6 +77,13 @@ public class CustomerOrder {
     public Instant getConversionStartedAt() { return conversionStartedAt; }
     public Instant getCreatedAt() { return createdAt; }
 
+    public void updatePending(String notes, BigDecimal total) {
+        if (status != CustomerOrderStatus.PENDENTE) throw new IllegalStateException("Somente pedidos pendentes podem ser editados.");
+        this.notes = notes == null || notes.isBlank() ? null : notes.trim();
+        this.total = total;
+        this.viewedAt = null;
+    }
+
     public void markViewed(Instant now) { if (viewedAt == null) viewedAt = now; }
     public void reject() { status = CustomerOrderStatus.RECUSADO; }
 

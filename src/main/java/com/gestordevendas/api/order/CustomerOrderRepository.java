@@ -20,4 +20,5 @@ public interface CustomerOrderRepository extends JpaRepository<CustomerOrder, UU
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select o from CustomerOrder o left join fetch o.client left join fetch o.conversionUser where o.id=:id and o.company.id=:companyId")
     Optional<CustomerOrder> findForUpdate(@Param("id") UUID id, @Param("companyId") UUID companyId);
+    java.util.Optional<CustomerOrder> findByIdAndCompanyIdAndClientId(UUID id, UUID companyId, UUID clientId);
 }
