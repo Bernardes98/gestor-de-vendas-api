@@ -108,6 +108,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/public/orders/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/public/orders/**").permitAll()
+                .requestMatchers(HttpMethod.PUT, "/api/public/orders/*/*").permitAll()
                 .requestMatchers(HttpMethod.POST,
                     "/api/auth/login",
                     "/api/auth/refresh",
