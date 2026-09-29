@@ -83,7 +83,7 @@ class PlatformCompanyIntegrationTest extends PostgresIntegrationTest {
             .andExpect(jsonPath("$.company.name").value("Empresa Nova"))
             .andExpect(jsonPath("$.ownerEmail").value("owner@example.com"));
 
-        verify(emailSender).sendCompanyInvite(anyString(), anyString());
+        verify(emailSender).sendCompanyInvite(anyString(), anyString(), anyString());
     }
 
     private String login(String email) throws Exception {
