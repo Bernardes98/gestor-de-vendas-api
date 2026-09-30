@@ -12,5 +12,6 @@ public enum CompanyFeature {
     ROUTES,
     REPORTS,
     CHARTS,
-    SETTINGS
+    SETTINGS,
+    FIXED_EXPENSES
 }
