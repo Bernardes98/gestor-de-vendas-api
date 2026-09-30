@@ -1,0 +1,1 @@
+package com.gestordevendas.api.food; import java.math.BigDecimal; import java.util.UUID; public record CourierResponse(UUID id, String name, String phone, BigDecimal deliveryFee){static CourierResponse from(Courier c){return new CourierResponse(c.getId(),c.getName(),c.getPhone(),c.getDeliveryFee());}}

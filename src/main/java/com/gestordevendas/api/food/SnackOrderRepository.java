@@ -1,0 +1,1 @@
+package com.gestordevendas.api.food; import org.springframework.data.jpa.repository.*; import java.util.*; public interface SnackOrderRepository extends JpaRepository<SnackOrder,UUID>{@EntityGraph(attributePaths="courier") List<SnackOrder> findAllByCompany_IdOrderByCreatedAtDesc(UUID companyId);}

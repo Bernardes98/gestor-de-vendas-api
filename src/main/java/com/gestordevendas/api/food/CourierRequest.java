@@ -1,0 +1,1 @@
+package com.gestordevendas.api.food; import jakarta.validation.constraints.*; import java.math.BigDecimal; public record CourierRequest(@NotBlank String name, String phone, @NotNull @DecimalMin("0.00") BigDecimal deliveryFee){}

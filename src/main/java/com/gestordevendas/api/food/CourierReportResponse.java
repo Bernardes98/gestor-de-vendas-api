@@ -1,0 +1,1 @@
+package com.gestordevendas.api.food; import java.math.BigDecimal; import java.util.*; public record CourierReportResponse(long deliveries, BigDecimal cost, List<Row> couriers){public record Row(UUID courierId, String courierName, long deliveries, BigDecimal cost){}}
