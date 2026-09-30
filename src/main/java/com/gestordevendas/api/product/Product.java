@@ -58,6 +58,9 @@ public class Product {
     @Column(name = "ativo", nullable = false)
     private boolean active = true;
 
+    @Column(name = "ordem", nullable = false)
+    private int orderIndex = 1;
+
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private Instant createdAt;
 
@@ -85,6 +88,8 @@ public class Product {
     public BigDecimal getCurrentStock() { return currentStock; }
     public BigDecimal getMinimumStock() { return minimumStock; }
     public boolean isActive() { return active; }
+    public int getOrderIndex() { return orderIndex; }
+    public void setOrderIndex(int orderIndex) { this.orderIndex = orderIndex; }
 
     public void update(String name, String code, String description, ProductCategory category,
                        BigDecimal costPrice, BigDecimal salePrice, boolean stockControlled) {

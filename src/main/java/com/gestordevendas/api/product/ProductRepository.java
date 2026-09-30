@@ -26,7 +26,7 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     List<Product> findAllByCompanyIdAndActiveTrueOrderByNameAsc(UUID companyId);
 
     @EntityGraph(attributePaths = {"company", "category"})
-    List<Product> findAllByCompanyIdOrderByNameAsc(UUID companyId);
+    List<Product> findAllByCompanyIdOrderByOrderIndexAscNameAsc(UUID companyId);
 
     long countByCompanyIdAndCategoryId(UUID companyId, UUID categoryId);
     long countByCompanyId(UUID companyId);

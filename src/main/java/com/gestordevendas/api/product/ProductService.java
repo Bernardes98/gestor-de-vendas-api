@@ -48,7 +48,7 @@ public class ProductService {
     @Transactional(readOnly = true)
     public List<ProductResponse> list() {
         TenantContext context = currentTenant();
-        return repository.findAllByCompanyIdOrderByNameAsc(context.companyId()).stream()
+        return repository.findAllByCompanyIdOrderByOrderIndexAscNameAsc(context.companyId()).stream()
             .map(product -> response(product, context)).toList();
     }
 
@@ -64,6 +64,9 @@ public class ProductService {
         tenantGuard.requireOwnerOrAdmin(context);
         Company company = companyRepository.findById(context.companyId()).orElseThrow();
         Product product = Product.create(company, request.name(), request.salePrice());
+        int nextOrder = repository.findAllByCompanyIdOrderByOrderIndexAscNameAsc(context.companyId()).stream()
+            .mapToInt(Product::getOrderIndex).max().orElse(0) + 1;
+        product.setOrderIndex(nextOrder);
         apply(product, request, context.companyId());
         repository.save(product);
         return response(product, context);
@@ -76,6 +79,25 @@ public class ProductService {
         Product product = requireProduct(id, context.companyId());
         apply(product, request, context.companyId());
         return response(product, context);
+    }
+
+    @Transactional
+    public List<ProductResponse> reorder(ProductReorderRequest request) {
+        TenantContext context = currentTenant();
+        tenantGuard.requireOwnerOrAdmin(context);
+        List<Product> products = repository.findAllByCompanyIdOrderByOrderIndexAscNameAsc(context.companyId());
+        java.util.Map<UUID, Product> byId = new java.util.HashMap<>();
+        products.forEach(product -> byId.put(product.getId(), product));
+        int position = 1;
+        for (UUID id : request.productIds()) {
+            Product product = byId.remove(id);
+            if (product != null) product.setOrderIndex(position++);
+        }
+        for (Product product : products) {
+            if (byId.containsKey(product.getId())) product.setOrderIndex(position++);
+        }
+        return repository.findAllByCompanyIdOrderByOrderIndexAscNameAsc(context.companyId()).stream()
+            .map(product -> response(product, context)).toList();
     }
 
     @Transactional
@@ -118,7 +140,7 @@ public class ProductService {
         return new ProductResponse(product.getId(), product.getName(), product.getCode(), product.getBrand(), product.getDescription(),
             product.getCategory() == null ? null : product.getCategory().getId(),
             product.getCategory() == null ? null : product.getCategory().getName(), product.getSalePrice(),
-            product.isStockControlled(), product.getCurrentStock(), product.getMinimumStock(), canSeeCost ? product.getCostPrice() : null, margin, product.isActive(), photos);
+            product.isStockControlled(), product.getCurrentStock(), product.getMinimumStock(), canSeeCost ? product.getCostPrice() : null, margin, product.isActive(), product.getOrderIndex(), photos);
     }
 
     private BigDecimal margin(BigDecimal cost, BigDecimal sale) {

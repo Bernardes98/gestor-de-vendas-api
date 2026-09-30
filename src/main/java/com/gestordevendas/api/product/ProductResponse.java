@@ -22,5 +22,6 @@ public record ProductResponse(
     BigDecimal costPrice,
     BigDecimal marginPercent,
     boolean active,
+    int orderIndex,
     List<ProductPhotoResponse> photos
 ) {}
