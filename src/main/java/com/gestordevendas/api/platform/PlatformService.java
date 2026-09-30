@@ -305,6 +305,12 @@ public class PlatformService {
             .toList();
     }
 
+    @Transactional(readOnly = true)
+    public Company requirePlatformCompany(UUID companyId) {
+        requirePlatformAdmin();
+        return requireCompany(companyId);
+    }
+
     private Company requireCompany(UUID companyId) {
         return companyRepository.findById(companyId)
             .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "COMPANY_NOT_FOUND", "Empresa não encontrada."));

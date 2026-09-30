@@ -8,6 +8,7 @@ import com.gestordevendas.api.common.error.ApiException;
 import com.gestordevendas.api.common.security.SecurityProperties;
 import com.gestordevendas.api.common.token.SecureTokenService;
 import com.gestordevendas.api.mail.EmailSender;
+import com.gestordevendas.api.feature.CompanyFeatureService;
 import com.gestordevendas.api.mail.MailProperties;
 import com.gestordevendas.api.tenant.TenantContext;
 import com.gestordevendas.api.tenant.TenantContextService;
@@ -40,6 +41,7 @@ public class AuthService {
     private final EmailSender emailSender;
     private final MailProperties mailProperties;
     private final AuditService auditService;
+    private final CompanyFeatureService companyFeatureService;
 
     public AuthService(UserRepository userRepository,
                        CompanyMembershipRepository membershipRepository,
@@ -53,7 +55,8 @@ public class AuthService {
                        PasswordPolicy passwordPolicy,
                        EmailSender emailSender,
                        MailProperties mailProperties,
-                       AuditService auditService) {
+                       AuditService auditService,
+                       CompanyFeatureService companyFeatureService) {
         this.userRepository = userRepository;
         this.membershipRepository = membershipRepository;
         this.tenantContextService = tenantContextService;
@@ -67,6 +70,7 @@ public class AuthService {
         this.emailSender = emailSender;
         this.mailProperties = mailProperties;
         this.auditService = auditService;
+        this.companyFeatureService = companyFeatureService;
     }
 
     @Transactional
@@ -145,9 +149,10 @@ public class AuthService {
                         membership.getCompany().getId(),
                         membership.getCompany().getName(),
                         true),
-                    membership.getRole()))
+                    membership.getRole(),
+                    companyFeatureService.get(membership.getCompany().getId())))
                 .orElseGet(() -> new MeResponse(
-                    new MeResponse.UserView(user.getId(), user.getEmail(), true), null, null));
+                    new MeResponse.UserView(user.getId(), user.getEmail(), true), null, null, java.util.Map.of()));
         }
         TenantContext context = tenantContextService.requireForUser(user.getId());
         CompanyMembership membership = membershipRepository.findByUserId(user.getId())
@@ -155,7 +160,8 @@ public class AuthService {
         return new MeResponse(
             new MeResponse.UserView(user.getId(), user.getEmail(), false),
             new MeResponse.CompanyView(context.companyId(), membership.getCompany().getName(), true),
-            context.role());
+            context.role(),
+            companyFeatureService.get(context.companyId()));
     }
 
 

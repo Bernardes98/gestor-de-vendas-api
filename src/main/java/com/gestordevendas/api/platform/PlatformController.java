@@ -1,6 +1,8 @@
 package com.gestordevendas.api.platform;
 
 import com.gestordevendas.api.company.Company;
+import com.gestordevendas.api.feature.CompanyFeature;
+import com.gestordevendas.api.feature.CompanyFeatureService;
 import com.gestordevendas.api.audit.AuditQueryService;
 import com.gestordevendas.api.audit.AuditResponse;
 import com.gestordevendas.api.invite.CompanyInvite;
@@ -23,6 +25,7 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import java.net.URI;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -30,10 +33,12 @@ import java.util.UUID;
 public class PlatformController {
     private final PlatformService platformService;
     private final AuditQueryService auditQueryService;
+    private final CompanyFeatureService companyFeatureService;
 
-    public PlatformController(PlatformService platformService, AuditQueryService auditQueryService) {
+    public PlatformController(PlatformService platformService, AuditQueryService auditQueryService, CompanyFeatureService companyFeatureService) {
         this.platformService = platformService;
         this.auditQueryService = auditQueryService;
+        this.companyFeatureService = companyFeatureService;
     }
 
     @PostMapping("/companies/invites")
@@ -83,6 +88,19 @@ public class PlatformController {
                 company.productCount(),
                 company.saleCount()))
             .toList();
+    }
+
+
+    @GetMapping("/companies/{id}/features")
+    Map<CompanyFeature, Boolean> features(@PathVariable UUID id) {
+        platformService.requirePlatformCompany(id);
+        return companyFeatureService.get(id);
+    }
+
+    @PatchMapping("/companies/{id}/features")
+    Map<CompanyFeature, Boolean> updateFeatures(@PathVariable UUID id, @RequestBody Map<CompanyFeature, Boolean> features) {
+        platformService.requirePlatformCompany(id);
+        return companyFeatureService.update(id, features);
     }
 
     @GetMapping("/companies/{id}/users")
