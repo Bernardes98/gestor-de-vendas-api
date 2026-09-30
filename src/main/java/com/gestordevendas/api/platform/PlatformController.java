@@ -131,6 +131,12 @@ public class PlatformController {
         return platformService.updateCompanyUser(id, membershipId, request.role(), request.active());
     }
 
+    @DeleteMapping("/companies/{id}/users/{membershipId}")
+    ResponseEntity<Void> removeUser(@PathVariable UUID id, @PathVariable UUID membershipId) {
+        platformService.removeCompanyUser(id, membershipId);
+        return ResponseEntity.noContent().build();
+    }
+
     @DeleteMapping("/companies/{id}")
     ResponseEntity<Void> deleteCompany(@PathVariable UUID id) {
         platformService.deleteCompany(id);

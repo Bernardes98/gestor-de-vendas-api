@@ -270,6 +270,26 @@ public class PlatformService {
         return toCompanyUserView(target);
     }
 
+    @Transactional
+    public void removeCompanyUser(UUID companyId, UUID membershipId) {
+        User actor = requirePlatformAdmin();
+        requireCompany(companyId);
+        CompanyMembership target = membershipRepository.findByIdAndCompanyId(membershipId, companyId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Vínculo de usuário não encontrado nesta empresa."));
+        if (target.isActive()) {
+            throw new ApiException(HttpStatus.CONFLICT, "USER_MUST_BE_INACTIVE", "Desative o usuário antes de removê-lo da empresa.");
+        }
+
+        UUID userId = target.getUser().getId();
+        String email = target.getUser().getEmail();
+        CompanyRole role = target.getRole();
+        refreshTokenRepository.revokeAllActiveByUserId(userId, Instant.now());
+        membershipRepository.delete(target);
+        membershipRepository.flush();
+        auditService.record("PLATFORM_USER_UNLINKED", companyId, actor.getId(), "USER", userId, null,
+            Map.of("email", email, "role", role.name()));
+    }
+
     @Transactional(readOnly = true)
     public List<CompanySummaryView> listCompanySummaries() {
         requirePlatformAdmin();
