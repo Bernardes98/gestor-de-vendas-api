@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 public interface ManualReceivablePaymentRepository extends JpaRepository<ManualReceivablePayment, UUID> {
+    java.util.List<ManualReceivablePayment> findAllByCompanyIdAndReceivableIdOrderByPaymentDateAscCreatedAtAsc(UUID companyId, UUID receivableId);
     @Query("select coalesce(sum(p.amount), 0) from ManualReceivablePayment p where p.company.id = :companyId and p.receivable.id = :receivableId")
     BigDecimal sumPaid(@Param("companyId") UUID companyId, @Param("receivableId") UUID receivableId);
 }

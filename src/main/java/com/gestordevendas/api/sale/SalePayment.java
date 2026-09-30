@@ -54,6 +54,7 @@ public class SalePayment {
     }
 
     public UUID getId() { return id; }
+    public String getNotes() { return notes; }
     public BigDecimal getAmount() { return amount; }
     public LocalDate getPaymentDate() { return paymentDate; }
     public Instant getPaidAt() { return createdAt; }

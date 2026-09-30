@@ -48,6 +48,8 @@ public class ManualReceivablePayment {
         return p;
     }
 
+    public UUID getId() { return id; }
+    public String getNotes() { return notes; }
     public BigDecimal getAmount() { return amount; }
     public LocalDate getPaymentDate() { return paymentDate; }
     public Instant getCreatedAt() { return createdAt; }

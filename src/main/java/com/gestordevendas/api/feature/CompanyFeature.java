@@ -13,5 +13,6 @@ public enum CompanyFeature {
     REPORTS,
     CHARTS,
     SETTINGS,
-    FIXED_EXPENSES
+    FIXED_EXPENSES,
+    PROMOTIONS
 }

@@ -21,6 +21,8 @@ public class ClientProductPromotion {
         ClientProductPromotion v = new ClientProductPromotion(); v.id = UUID.randomUUID(); v.company = company; v.client = client; v.product = product; v.update(price, min); return v;
     }
     public UUID getProductId() { return product.getId(); }
+    public Client getClient() { return client; }
+    public Product getProduct() { return product; }
     public BigDecimal getPromotionalPrice() { return promotionalPrice; }
     public BigDecimal getMinimumQuantity() { return minimumQuantity; }
     public void update(BigDecimal price, BigDecimal min) { promotionalPrice = price; minimumQuantity = min; }

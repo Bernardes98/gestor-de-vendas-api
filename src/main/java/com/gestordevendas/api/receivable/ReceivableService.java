@@ -11,10 +11,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class ReceivableService {
@@ -73,4 +73,13 @@ public class ReceivableService {
             Comparator.nullsLast(Comparator.reverseOrder())));
         return result;
     }
+    @Transactional(readOnly = true)
+    public List<PaymentHistoryResponse> payments(String type, UUID id) {
+        TenantContext context = tenantContextService.requireForUser(currentUserService.requireUserId());
+        tenantGuard.requireOwnerOrAdmin(context);
+        if ("SALE".equalsIgnoreCase(type)) return salePaymentRepository.findAllByCompanyIdAndSaleIdOrderByPaymentDateAscCreatedAtAsc(context.companyId(), id).stream().map(p -> new PaymentHistoryResponse(p.getId(), p.getAmount(), p.getPaymentDate(), p.getNotes(), p.getPaidAt())).toList();
+        if ("MANUAL".equalsIgnoreCase(type)) return manualPaymentRepository.findAllByCompanyIdAndReceivableIdOrderByPaymentDateAscCreatedAtAsc(context.companyId(), id).stream().map(p -> new PaymentHistoryResponse(p.getId(), p.getAmount(), p.getPaymentDate(), p.getNotes(), p.getCreatedAt())).toList();
+        return List.of();
+    }
+
 }
