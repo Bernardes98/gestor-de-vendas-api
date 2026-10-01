@@ -1,0 +1,1 @@
+package com.gestordevendas.api.food; import org.springframework.data.jpa.repository.JpaRepository; import java.util.*; public interface BeverageRepository extends JpaRepository<Beverage,UUID>{List<Beverage> findAllByCompany_IdOrderByNameAsc(UUID companyId); Optional<Beverage> findByIdAndCompany_Id(UUID id, UUID companyId);}

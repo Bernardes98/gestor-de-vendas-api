@@ -21,5 +21,6 @@ public enum CompanyFeature {
     KITCHEN,
     SNACK_COSTS,
     SNACK_STATS,
-    CASH
+    CASH,
+    BEVERAGES
 }

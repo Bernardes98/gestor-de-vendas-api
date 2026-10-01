@@ -1,0 +1,1 @@
+package com.gestordevendas.api.food; import java.math.BigDecimal; import java.util.UUID; public record BeverageResponse(UUID id, String name, BigDecimal price, BigDecimal cost){static BeverageResponse from(Beverage b){return new BeverageResponse(b.getId(),b.getName(),b.getPrice(),b.getCost());}}

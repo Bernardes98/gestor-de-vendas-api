@@ -1,0 +1,1 @@
+package com.gestordevendas.api.food; import jakarta.validation.constraints.*; import java.math.BigDecimal; public record BeverageRequest(@NotBlank String name, @NotNull @DecimalMin("0.00") BigDecimal price, @NotNull @DecimalMin("0.00") BigDecimal cost){}
