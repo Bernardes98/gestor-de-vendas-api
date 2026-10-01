@@ -79,9 +79,6 @@ public class PublicOrderService {
         String companyName = client.getCompany().getName();
         String appBaseUrl = trimTrailingSlash(mailProperties.appBaseUrl());
         String targetUrl = appBaseUrl + "/pedido/" + token;
-        String logoUrl = client.getCompany().getLogoKey() == null
-            ? appBaseUrl + "/icons/icon-512.png"
-            : objectStorage.publicUrl(client.getCompany().getLogoKey());
         String title = companyName + " • Pedido online";
         String description = "Faça seu pedido online com " + companyName + ".";
         return "<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\">"
@@ -90,14 +87,9 @@ public class PublicOrderService {
             + "<meta property=\"og:type\" content=\"website\">"
             + "<meta property=\"og:title\" content=\"" + html(title) + "\">"
             + "<meta property=\"og:description\" content=\"" + html(description) + "\">"
-            + "<meta property=\"og:image\" content=\"" + html(logoUrl) + "\">"
-            + "<meta property=\"og:image:secure_url\" content=\"" + html(logoUrl) + "\">"
-            + "<meta property=\"og:image:alt\" content=\"Logo " + html(companyName) + "\">"
             + "<meta property=\"og:url\" content=\"" + html(targetUrl) + "\">"
-            + "<meta name=\"twitter:card\" content=\"summary_large_image\">"
             + "<meta name=\"twitter:title\" content=\"" + html(title) + "\">"
             + "<meta name=\"twitter:description\" content=\"" + html(description) + "\">"
-            + "<meta name=\"twitter:image\" content=\"" + html(logoUrl) + "\">"
             + "<meta http-equiv=\"refresh\" content=\"0;url=" + html(targetUrl) + "\">"
             + "</head><body><p>Abrindo pedido de " + html(companyName) + "...</p>"
             + "<script>location.replace(" + jsString(targetUrl) + ");</script></body></html>";
