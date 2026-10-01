@@ -9,5 +9,5 @@ public record PublicOrderCatalogResponse(
     String clientName, List<Group> productGroups, List<Product> products
 ) {
     public record Group(UUID id, String name, int order) {}
-    public record Product(UUID id, String name, String brand, String sku, BigDecimal price, BigDecimal promotionalPrice, BigDecimal minimumPromotionQuantity, List<String> photoUrls, UUID groupId, boolean stockControlled, BigDecimal currentStock) {}
+    public record Product(UUID id, String name, String brand, String sku, BigDecimal price, BigDecimal promotionalPrice, BigDecimal minimumPromotionQuantity, List<String> photoUrls, UUID groupId, int order, boolean stockControlled, BigDecimal currentStock) {}
 }
