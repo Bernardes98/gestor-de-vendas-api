@@ -2,6 +2,7 @@ package com.gestordevendas.api.order;
 
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
@@ -13,6 +14,7 @@ public class PublicOrderController {
     public PublicOrderController(PublicOrderService service) { this.service = service; }
 
     @GetMapping("/catalog") public PublicOrderCatalogResponse catalog(@PathVariable String token) { return service.catalog(token); }
+    @GetMapping(value = "/share", produces = MediaType.TEXT_HTML_VALUE) public String share(@PathVariable String token) { return service.sharePage(token); }
     @GetMapping("/recent") public ResponseEntity<CustomerOrderResponse> recent(@PathVariable String token) {
         CustomerOrderResponse response = service.recent(token); return response == null ? ResponseEntity.noContent().build() : ResponseEntity.ok(response);
     }

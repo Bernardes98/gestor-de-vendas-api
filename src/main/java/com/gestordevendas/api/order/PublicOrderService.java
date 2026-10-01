@@ -10,6 +10,7 @@ import com.gestordevendas.api.pricing.ClientProductPriceRepository;
 import com.gestordevendas.api.product.*;
 import com.gestordevendas.api.promotion.*;
 import com.gestordevendas.api.storage.ObjectStorage;
+import com.gestordevendas.api.mail.MailProperties;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,14 +32,15 @@ public class PublicOrderService {
     private final CustomerOrderRepository orderRepository;
     private final CustomerOrderItemRepository itemRepository;
     private final ObjectStorage objectStorage;
+    private final MailProperties mailProperties;
 
     public PublicOrderService(ClientRepository clientRepository, ProductRepository productRepository,
                               ProductCategoryRepository categoryRepository, ProductPhotoRepository photoRepository, ClientProductPriceRepository priceRepository,
                               ClientHiddenProductRepository hiddenRepository, ClientProductPromotionRepository promotionRepository, CustomerOrderRepository orderRepository,
-                              CustomerOrderItemRepository itemRepository, ObjectStorage objectStorage) {
+                              CustomerOrderItemRepository itemRepository, ObjectStorage objectStorage, MailProperties mailProperties) {
         this.clientRepository = clientRepository; this.productRepository = productRepository; this.categoryRepository = categoryRepository; this.photoRepository = photoRepository;
         this.priceRepository = priceRepository; this.hiddenRepository = hiddenRepository; this.promotionRepository = promotionRepository; this.orderRepository = orderRepository;
-        this.itemRepository = itemRepository; this.objectStorage = objectStorage;
+        this.itemRepository = itemRepository; this.objectStorage = objectStorage; this.mailProperties = mailProperties;
     }
 
     @Transactional(readOnly = true)
@@ -68,6 +70,50 @@ public class PublicOrderService {
         String logo = client.getCompany().getLogoKey() == null ? null : objectStorage.publicUrl(client.getCompany().getLogoKey());
         return new PublicOrderCatalogResponse(client.getCompany().getName(), logo, client.getCompany().getPrimaryColor(),
             client.getCompany().getSecondaryColor(), client.getName(), groups, products);
+    }
+
+
+    @Transactional(readOnly = true)
+    public String sharePage(String token) {
+        Client client = requirePublicClient(token);
+        String companyName = client.getCompany().getName();
+        String appBaseUrl = trimTrailingSlash(mailProperties.appBaseUrl());
+        String targetUrl = appBaseUrl + "/pedido/" + token;
+        String logoUrl = client.getCompany().getLogoKey() == null
+            ? appBaseUrl + "/icons/icon-512.png"
+            : objectStorage.publicUrl(client.getCompany().getLogoKey());
+        String title = companyName + " • Pedido online";
+        String description = "Faça seu pedido online com " + companyName + ".";
+        return "<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\">"
+            + "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+            + "<title>" + html(title) + "</title>"
+            + "<meta property=\"og:type\" content=\"website\">"
+            + "<meta property=\"og:title\" content=\"" + html(title) + "\">"
+            + "<meta property=\"og:description\" content=\"" + html(description) + "\">"
+            + "<meta property=\"og:image\" content=\"" + html(logoUrl) + "\">"
+            + "<meta property=\"og:url\" content=\"" + html(targetUrl) + "\">"
+            + "<meta name=\"twitter:card\" content=\"summary_large_image\">"
+            + "<meta name=\"twitter:title\" content=\"" + html(title) + "\">"
+            + "<meta name=\"twitter:description\" content=\"" + html(description) + "\">"
+            + "<meta name=\"twitter:image\" content=\"" + html(logoUrl) + "\">"
+            + "<meta http-equiv=\"refresh\" content=\"0;url=" + html(targetUrl) + "\">"
+            + "</head><body><p>Abrindo pedido de " + html(companyName) + "...</p>"
+            + "<script>location.replace(" + jsString(targetUrl) + ");</script></body></html>";
+    }
+
+    private static String trimTrailingSlash(String value) {
+        if (value == null || value.isBlank()) return "http://localhost:5173";
+        return value.endsWith("/") ? value.substring(0, value.length() - 1) : value;
+    }
+
+    private static String html(String value) {
+        if (value == null) return "";
+        return value.replace("&", "&amp;").replace("\"", "&quot;").replace("<", "&lt;").replace(">", "&gt;");
+    }
+
+    private static String jsString(String value) {
+        String safe = value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"").replace("<", "\\u003c").replace(">", "\\u003e");
+        return "\"" + safe + "\"";
     }
 
     @Transactional
