@@ -61,7 +61,8 @@ public class PublicOrderService {
                     prices.getOrDefault(product.getId(), product.getSalePrice()),
                     promotion == null ? null : promotion.getPromotionalPrice(),
                     promotion == null ? null : promotion.getMinimumQuantity(),
-                    photoUrls(companyId, product.getId()), product.getCategory() == null ? null : product.getCategory().getId());
+                    photoUrls(companyId, product.getId()), product.getCategory() == null ? null : product.getCategory().getId(),
+                    product.isStockControlled(), product.getCurrentStock());
             })
             .toList();
         String logo = client.getCompany().getLogoKey() == null ? null : objectStorage.publicUrl(client.getCompany().getLogoKey());
@@ -128,6 +129,9 @@ public class PublicOrderService {
             .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PRODUCT_NOT_FOUND", "Produto não encontrado."));
         if (hiddenRepository.existsByCompanyIdAndClientIdAndProductId(companyId, client.getId(), product.getId())) {
             throw new ApiException(HttpStatus.NOT_FOUND, "PRODUCT_NOT_FOUND", "Produto não encontrado.");
+        }
+        if (product.isStockControlled() && product.getCurrentStock().compareTo(request.quantity()) < 0) {
+            throw new ApiException(HttpStatus.CONFLICT, "INSUFFICIENT_STOCK", "Produto sem estoque suficiente para a quantidade solicitada.");
         }
         BigDecimal price = priceRepository.findByCompanyIdAndClientIdAndProductId(companyId, client.getId(), product.getId())
             .map(ClientProductPrice::getPrice).orElse(product.getSalePrice()).setScale(2, RoundingMode.HALF_UP);
