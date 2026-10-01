@@ -55,7 +55,7 @@ public class PublicOrderService {
         List<PublicOrderCatalogResponse.Group> groups = categoryRepository.findAllByCompanyIdOrderByOrderIndexAscNameAsc(companyId).stream()
             .map(group -> new PublicOrderCatalogResponse.Group(group.getId(), group.getName(), group.getOrderIndex()))
             .toList();
-        List<PublicOrderCatalogResponse.Product> products = productRepository.findAllByCompanyIdAndActiveTrueOrderByNameAsc(companyId).stream()
+        List<PublicOrderCatalogResponse.Product> products = productRepository.findAllByCompanyIdAndActiveTrueOrderByOrderIndexAscNameAsc(companyId).stream()
             .filter(product -> !hidden.contains(product.getId()))
             .map(product -> {
                 ClientProductPromotion promotion = promotions.get(product.getId());
