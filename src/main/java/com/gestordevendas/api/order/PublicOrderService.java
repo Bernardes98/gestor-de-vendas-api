@@ -64,7 +64,7 @@ public class PublicOrderService {
                     promotion == null ? null : promotion.getPromotionalPrice(),
                     promotion == null ? null : promotion.getMinimumQuantity(),
                     photoUrls(companyId, product.getId()), product.getCategory() == null ? null : product.getCategory().getId(),
-                    product.getOrderIndex(), product.isStockControlled(), product.getCurrentStock());
+                    product.getOrderIndex(), product.isStockControlled(), product.getCurrentStock(), product.getMinimumStock());
             })
             .toList();
         String logo = client.getCompany().getLogoKey() == null ? null : objectStorage.publicUrl(client.getCompany().getLogoKey());

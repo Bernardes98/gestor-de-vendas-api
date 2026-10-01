@@ -1,0 +1,1 @@
+ALTER TABLE snack_orders ADD COLUMN IF NOT EXISTS client_city VARCHAR(160);
