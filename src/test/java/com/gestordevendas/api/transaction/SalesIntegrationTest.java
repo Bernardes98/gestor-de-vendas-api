@@ -26,9 +26,9 @@ class SalesIntegrationTest extends BusinessIntegrationTestSupport {
         mvc.perform(get("/api/sales/{id}", saleId).header("Authorization", bearer(adminToken)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.total").value(130.00))
-            .andExpect(jsonPath("$.costTotal").value(80.00))
-            .andExpect(jsonPath("$.profitTotal").value(50.00))
-            .andExpect(jsonPath("$.items[0].unitCost").value(40.00));
+            .andExpect(jsonPath("$.costTotal").value(70.00))
+            .andExpect(jsonPath("$.profitTotal").value(60.00))
+            .andExpect(jsonPath("$.items[0].unitCost").value(35.00));
 
         mvc.perform(get("/api/sales/{id}", saleId).header("Authorization", bearer(sellerToken)))
             .andExpect(status().isOk())

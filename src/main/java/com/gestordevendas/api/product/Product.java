@@ -90,6 +90,8 @@ public class Product {
     public boolean isActive() { return active; }
     public int getOrderIndex() { return orderIndex; }
     public void setOrderIndex(int orderIndex) { this.orderIndex = orderIndex; }
+    public void enableStockControl() { this.stockControlled = true; }
+    public void setCostPrice(BigDecimal costPrice) { this.costPrice = costPrice == null ? BigDecimal.ZERO : costPrice; }
 
     public void update(String name, String code, String description, ProductCategory category,
                        BigDecimal costPrice, BigDecimal salePrice, boolean stockControlled) {
