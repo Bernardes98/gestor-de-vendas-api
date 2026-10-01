@@ -1,16 +1,3 @@
 package com.gestordevendas.api.sale;
-
-import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.NotNull;
-
-import java.time.Instant;
-import java.util.List;
-import java.util.UUID;
-
-public record SaleRequest(
-    UUID clientId,
-    Instant soldAt,
-    @NotNull SalePaymentType paymentType,
-    @NotEmpty List<@Valid SaleItemRequest> items
-) {}
+import com.gestordevendas.api.food.PaymentMethod; import jakarta.validation.Valid; import jakarta.validation.constraints.*; import java.math.BigDecimal; import java.time.Instant; import java.util.*;
+public record SaleRequest(UUID clientId,Instant soldAt,@NotNull SalePaymentType paymentType,PaymentMethod paymentMethod,@DecimalMin("0.00") BigDecimal cashReceived,@NotEmpty List<@Valid SaleItemRequest> items) {}

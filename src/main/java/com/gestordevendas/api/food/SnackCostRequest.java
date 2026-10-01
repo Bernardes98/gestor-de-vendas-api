@@ -1,0 +1,1 @@
+package com.gestordevendas.api.food; import jakarta.validation.Valid; import jakarta.validation.constraints.*; import java.math.BigDecimal; import java.util.*; public record SnackCostRequest(List<@Valid Item> items){public record Item(@NotNull UUID productId, @NotNull @DecimalMin("0.001") BigDecimal quantity){}}

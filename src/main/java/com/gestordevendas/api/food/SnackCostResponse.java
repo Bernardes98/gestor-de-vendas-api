@@ -1,0 +1,1 @@
+package com.gestordevendas.api.food; import java.math.BigDecimal; import java.util.*; public record SnackCostResponse(UUID snackId, String snackName, BigDecimal salePrice, BigDecimal cost, BigDecimal profit, List<Item> items){public record Item(UUID productId, String productName, BigDecimal quantity, BigDecimal unitCost, BigDecimal totalCost){}}

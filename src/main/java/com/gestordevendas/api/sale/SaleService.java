@@ -108,6 +108,7 @@ public class SaleService {
         }
         itemRepository.saveAll(items);
         applyTotals(sale, items, request.paymentType());
+        sale.setPaymentDetails(request.paymentType() == SalePaymentType.PRAZO ? null : request.paymentMethod(), request.cashReceived());
         auditService.record("SALE_CREATED", context.companyId(), context.userId(), "SALE", sale.getId(), null,
             Map.of("number", sale.getNumber(), "total", sale.getTotal()));
         return response(sale, items, context);
@@ -140,6 +141,7 @@ public class SaleService {
         itemRepository.saveAll(newItems);
         BigDecimal cost = newItems.stream().map(SaleItem::getLineCost).reduce(BigDecimal.ZERO, BigDecimal::add);
         sale.update(client, request.soldAt(), request.paymentType(), money(newTotal), money(cost));
+        sale.setPaymentDetails(request.paymentType() == SalePaymentType.PRAZO ? null : request.paymentMethod(), request.cashReceived());
 
         SaleState state = stateRepository.findById(id).orElseGet(() -> SaleState.create(sale, currentType,
             userRepository.findById(context.userId()).orElseThrow()));
@@ -324,7 +326,7 @@ public class SaleService {
         BigDecimal outstanding = outstanding(sale, context.companyId());
         String clientName = sale.getClient() == null ? sale.getClientNameSnapshot() : sale.getClient().getName();
         return new SaleResponse(sale.getId(), sale.getNumber(), sale.getClient() == null ? null : sale.getClient().getId(),
-            clientName, sale.getSoldAt(), paymentType, status, sale.getTotal(),
+            clientName, sale.getSoldAt(), paymentType, sale.getPaymentMethod(), sale.getCashReceived(), sale.getChangeAmount(), status, sale.getTotal(),
             seeCost ? sale.getCostTotal() : null, seeCost ? sale.getProfitTotal() : null, paid, outstanding,
             resolvedCancelReason(sale),
             items.stream().map(i -> new SaleItemResponse(i.getProduct().getId(), i.getProductName(), i.getQuantity(), i.getUnitPrice(),

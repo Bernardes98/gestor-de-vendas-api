@@ -2,6 +2,7 @@ package com.gestordevendas.api.sale;
 
 import com.gestordevendas.api.client.Client;
 import com.gestordevendas.api.company.Company;
+import com.gestordevendas.api.food.PaymentMethod;
 import jakarta.persistence.*;
 
 import java.math.BigDecimal;
@@ -49,6 +50,16 @@ public class Sale {
     @Column(name = "pago_em")
     private Instant paidAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_method", nullable = false)
+    private PaymentMethod paymentMethod = PaymentMethod.PIX;
+
+    @Column(name = "cash_received")
+    private BigDecimal cashReceived;
+
+    @Column(name = "change_amount", nullable = false)
+    private BigDecimal changeAmount = BigDecimal.ZERO;
+
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private Instant createdAt;
 
@@ -89,6 +100,10 @@ public class Sale {
     public String getCancelReason() { return cancelReason; }
     public String getPaymentStatus() { return paymentStatus; }
     public Instant getPaidAt() { return paidAt; }
+    public PaymentMethod getPaymentMethod() { return paymentMethod; }
+    public BigDecimal getCashReceived() { return cashReceived; }
+    public BigDecimal getChangeAmount() { return changeAmount; }
+    public void setPaymentDetails(PaymentMethod method, BigDecimal cashReceived) { this.paymentMethod = method == null ? PaymentMethod.PIX : method; this.cashReceived = this.paymentMethod == PaymentMethod.CASH ? cashReceived : null; this.changeAmount = this.paymentMethod == PaymentMethod.CASH && cashReceived != null ? cashReceived.subtract(total).max(BigDecimal.ZERO) : BigDecimal.ZERO; }
 
     public void applyRuntimeState(SaleStatus status, SalePaymentType paymentType, String cancelReason) {
         this.status = status;

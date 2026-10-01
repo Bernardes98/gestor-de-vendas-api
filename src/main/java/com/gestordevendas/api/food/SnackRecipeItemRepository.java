@@ -1,0 +1,1 @@
+package com.gestordevendas.api.food; import org.springframework.data.jpa.repository.JpaRepository; import java.util.*; public interface SnackRecipeItemRepository extends JpaRepository<SnackRecipeItem,UUID>{List<SnackRecipeItem> findAllByCompany_IdAndSnack_Id(UUID companyId, UUID snackId); void deleteAllByCompany_IdAndSnack_Id(UUID companyId, UUID snackId);}

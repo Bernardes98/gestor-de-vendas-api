@@ -17,5 +17,9 @@ public enum CompanyFeature {
     PROMOTIONS,
     COURIERS,
     SNACKS,
-    NOTES
+    NOTES,
+    KITCHEN,
+    SNACK_COSTS,
+    SNACK_STATS,
+    CASH
 }

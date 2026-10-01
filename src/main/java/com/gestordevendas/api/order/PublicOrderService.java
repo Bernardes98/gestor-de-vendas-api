@@ -91,6 +91,8 @@ public class PublicOrderService {
             + "<meta property=\"og:title\" content=\"" + html(title) + "\">"
             + "<meta property=\"og:description\" content=\"" + html(description) + "\">"
             + "<meta property=\"og:image\" content=\"" + html(logoUrl) + "\">"
+            + "<meta property=\"og:image:secure_url\" content=\"" + html(logoUrl) + "\">"
+            + "<meta property=\"og:image:alt\" content=\"Logo " + html(companyName) + "\">"
             + "<meta property=\"og:url\" content=\"" + html(targetUrl) + "\">"
             + "<meta name=\"twitter:card\" content=\"summary_large_image\">"
             + "<meta name=\"twitter:title\" content=\"" + html(title) + "\">"
