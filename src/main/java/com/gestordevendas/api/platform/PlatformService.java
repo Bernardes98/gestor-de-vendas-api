@@ -88,6 +88,39 @@ public class PlatformService {
         this.jdbcTemplate = jdbcTemplate;
     }
 
+    private static final List<String> DEFAULT_MOBILE_NAV =
+        List.of("/clientes", "/produtos", "/vender", "/vendas", "/a-receber");
+    private static final java.util.Set<String> ALLOWED_MOBILE_NAV = java.util.Set.of(
+        "/visao-geral", "/clientes", "/produtos", "/compras", "/vender", "/vendas",
+        "/a-receber", "/pedidos", "/rota", "/gastos-fixos", "/promocoes", "/motoboys",
+        "/lanches", "/bebidas", "/nota", "/esteira", "/custo-lanches",
+        "/estatisticas-lanches", "/caixa", "/relatorios", "/graficos", "/configuracoes");
+
+    public List<String> getMobileNavigation(UUID companyId) {
+        requirePlatformAdmin();
+        if (!companyRepository.existsById(companyId))
+            throw new ApiException(HttpStatus.NOT_FOUND, "COMPANY_NOT_FOUND", "Empresa não encontrada.");
+        List<String> saved = jdbcTemplate.query(
+            "SELECT path FROM company_mobile_navigation WHERE company_id = ? ORDER BY position",
+            (rs, i) -> rs.getString(1), companyId);
+        return saved.isEmpty() ? DEFAULT_MOBILE_NAV : saved;
+    }
+
+    @Transactional
+    public void saveMobileNavigation(UUID companyId, List<String> items) {
+        requirePlatformAdmin();
+        if (!companyRepository.existsById(companyId))
+            throw new ApiException(HttpStatus.NOT_FOUND, "COMPANY_NOT_FOUND", "Empresa não encontrada.");
+        List<String> paths = items == null ? DEFAULT_MOBILE_NAV : items;
+        if (paths.isEmpty() || paths.size() > 5 || paths.stream().anyMatch(p -> !ALLOWED_MOBILE_NAV.contains(p))
+            || new java.util.HashSet<>(paths).size() != paths.size())
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_MOBILE_NAV", "Selecione de 1 a 5 botões diferentes.");
+        jdbcTemplate.update("DELETE FROM company_mobile_navigation WHERE company_id = ?", companyId);
+        for (int i = 0; i < paths.size(); i++)
+            jdbcTemplate.update("INSERT INTO company_mobile_navigation(company_id, path, position) VALUES (?, ?, ?)",
+                companyId, paths.get(i), i);
+    }
+
     @Transactional
     public CompanyInvite createCompanyInvite(CreateCompanyInviteCommand command) {
         User actor = requirePlatformAdmin();

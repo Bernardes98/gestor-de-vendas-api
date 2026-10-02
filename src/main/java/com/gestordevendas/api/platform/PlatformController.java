@@ -11,15 +11,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.net.URI;
@@ -46,6 +38,8 @@ public class PlatformController {
         CompanyInvite invite = platformService.createCompanyInvite(new PlatformService.CreateCompanyInviteCommand(
             request.name(), request.legalName(), request.document(), request.ownerEmail(),
             request.primaryColor(), request.secondaryColor()));
+        companyFeatureService.update(invite.getCompany().getId(), request.features() == null ? Map.of() : request.features());
+        platformService.saveMobileNavigation(invite.getCompany().getId(), request.mobileNavigation());
         URI location = ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}").buildAndExpand(invite.getId()).toUri();
         return ResponseEntity.created(location).body(toInviteResponse(invite));
     }
@@ -90,6 +84,17 @@ public class PlatformController {
             .toList();
     }
 
+
+    @GetMapping("/companies/{id}/mobile-navigation")
+    List<String> mobileNavigation(@PathVariable UUID id) {
+        return platformService.getMobileNavigation(id);
+    }
+
+    @PutMapping("/companies/{id}/mobile-navigation")
+    List<String> updateMobileNavigation(@PathVariable UUID id, @RequestBody List<String> items) {
+        platformService.saveMobileNavigation(id, items);
+        return platformService.getMobileNavigation(id);
+    }
 
     @GetMapping("/companies/{id}/features")
     Map<CompanyFeature, Boolean> features(@PathVariable UUID id) {
@@ -167,7 +172,9 @@ public class PlatformController {
         String document,
         @NotBlank @Email String ownerEmail,
         String primaryColor,
-        String secondaryColor
+        String secondaryColor,
+        Map<CompanyFeature, Boolean> features,
+        List<String> mobileNavigation
     ) {}
 
     public record CompanyResponse(UUID id, String name, String slug, boolean active) {}
