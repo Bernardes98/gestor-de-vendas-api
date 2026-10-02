@@ -18,13 +18,13 @@ public class CompanyFeatureService {
     @Transactional(readOnly = true)
     public Map<CompanyFeature, Boolean> get(UUID companyId) {
         EnumMap<CompanyFeature, Boolean> result = new EnumMap<>(CompanyFeature.class);
-        for (CompanyFeature feature : CompanyFeature.values()) result.put(feature, true);
+        for (CompanyFeature feature : CompanyFeature.values()) result.put(feature, feature != CompanyFeature.TABLES);
         repository.findAllByCompany_Id(companyId).forEach(row -> result.put(row.getFeature(), row.isEnabled()));
         return result;
     }
 
     @Transactional(readOnly = true)
-    public boolean enabled(UUID companyId, CompanyFeature feature) { return get(companyId).getOrDefault(feature, true); }
+    public boolean enabled(UUID companyId, CompanyFeature feature) { return get(companyId).getOrDefault(feature, feature != CompanyFeature.TABLES); }
 
     @Transactional
     public Map<CompanyFeature, Boolean> update(UUID companyId, Map<CompanyFeature, Boolean> values) {

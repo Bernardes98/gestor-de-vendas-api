@@ -93,7 +93,7 @@ public class PlatformService {
     private static final java.util.Set<String> ALLOWED_MOBILE_NAV = java.util.Set.of(
         "/visao-geral", "/clientes", "/produtos", "/compras", "/vender", "/vendas",
         "/a-receber", "/pedidos", "/rota", "/gastos-fixos", "/promocoes", "/motoboys",
-        "/lanches", "/bebidas", "/nota", "/esteira", "/custo-lanches",
+        "/lanches", "/bebidas", "/mesas", "/nota", "/esteira", "/custo-lanches",
         "/estatisticas-lanches", "/caixa", "/relatorios", "/graficos", "/configuracoes");
 
     public List<String> getMobileNavigation(UUID companyId) {
