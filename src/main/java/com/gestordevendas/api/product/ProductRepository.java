@@ -31,6 +31,9 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     @EntityGraph(attributePaths = {"company", "category"})
     List<Product> findAllByCompanyIdOrderByOrderIndexAscNameAsc(UUID companyId);
 
+    @EntityGraph(attributePaths = {"company", "category"})
+    List<Product> findAllByCompanyIdAndDeletedAtIsNullOrderByOrderIndexAscNameAsc(UUID companyId);
+
     long countByCompanyIdAndCategoryId(UUID companyId, UUID categoryId);
     long countByCompanyId(UUID companyId);
 }

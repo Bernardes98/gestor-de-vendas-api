@@ -48,7 +48,7 @@ public class ProductService {
     @Transactional(readOnly = true)
     public List<ProductResponse> list() {
         TenantContext context = currentTenant();
-        return repository.findAllByCompanyIdOrderByOrderIndexAscNameAsc(context.companyId()).stream()
+        return repository.findAllByCompanyIdAndDeletedAtIsNullOrderByOrderIndexAscNameAsc(context.companyId()).stream()
             .map(product -> response(product, context)).toList();
     }
 
@@ -64,7 +64,7 @@ public class ProductService {
         tenantGuard.requireOwnerOrAdmin(context);
         Company company = companyRepository.findById(context.companyId()).orElseThrow();
         Product product = Product.create(company, request.name(), request.salePrice());
-        int nextOrder = repository.findAllByCompanyIdOrderByOrderIndexAscNameAsc(context.companyId()).stream()
+        int nextOrder = repository.findAllByCompanyIdAndDeletedAtIsNullOrderByOrderIndexAscNameAsc(context.companyId()).stream()
             .mapToInt(Product::getOrderIndex).max().orElse(0) + 1;
         product.setOrderIndex(nextOrder);
         apply(product, request, context.companyId());
@@ -85,7 +85,7 @@ public class ProductService {
     public List<ProductResponse> reorder(ProductReorderRequest request) {
         TenantContext context = currentTenant();
         tenantGuard.requireOwnerOrAdmin(context);
-        List<Product> products = repository.findAllByCompanyIdOrderByOrderIndexAscNameAsc(context.companyId());
+        List<Product> products = repository.findAllByCompanyIdAndDeletedAtIsNullOrderByOrderIndexAscNameAsc(context.companyId());
         java.util.Map<UUID, Product> byId = new java.util.HashMap<>();
         products.forEach(product -> byId.put(product.getId(), product));
         int position = 1;
@@ -96,7 +96,7 @@ public class ProductService {
         for (Product product : products) {
             if (byId.containsKey(product.getId())) product.setOrderIndex(position++);
         }
-        return repository.findAllByCompanyIdOrderByOrderIndexAscNameAsc(context.companyId()).stream()
+        return repository.findAllByCompanyIdAndDeletedAtIsNullOrderByOrderIndexAscNameAsc(context.companyId()).stream()
             .map(product -> response(product, context)).toList();
     }
 
@@ -104,11 +104,11 @@ public class ProductService {
     public void deactivate(UUID id) {
         TenantContext context = currentTenant();
         tenantGuard.requireOwnerOrAdmin(context);
-        requireProduct(id, context.companyId()).setActive(false);
+        requireProduct(id, context.companyId()).softDelete();
     }
 
     public Product requireProduct(UUID id, UUID companyId) {
-        return repository.findByIdAndCompanyId(id, companyId)
+        return repository.findByIdAndCompanyId(id, companyId).filter(p -> p.getDeletedAt() == null)
             .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PRODUCT_NOT_FOUND", "Produto não encontrado."));
     }
 

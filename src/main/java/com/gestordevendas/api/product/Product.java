@@ -55,6 +55,9 @@ public class Product {
     @Column(name = "estoque_minimo", nullable = false, precision = 14, scale = 3)
     private BigDecimal minimumStock = BigDecimal.ZERO;
 
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
     @Column(name = "ativo", nullable = false)
     private boolean active = true;
 
@@ -88,6 +91,8 @@ public class Product {
     public BigDecimal getCurrentStock() { return currentStock; }
     public BigDecimal getMinimumStock() { return minimumStock; }
     public boolean isActive() { return active; }
+    public Instant getDeletedAt() { return deletedAt; }
+    public void softDelete() { this.deletedAt = Instant.now(); this.active = false; }
     public int getOrderIndex() { return orderIndex; }
     public void setOrderIndex(int orderIndex) { this.orderIndex = orderIndex; }
     public void enableStockControl() { this.stockControlled = true; }
