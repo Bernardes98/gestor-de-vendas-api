@@ -14,5 +14,6 @@ public record CompanySettingsRequest(
     @Size(max = 255) String address,
     @Size(max = 120) String city,
     @Pattern(regexp = "^#[0-9A-Fa-f]{6}$", message = "Cor principal inválida.") String primaryColor,
-    @Pattern(regexp = "^#[0-9A-Fa-f]{6}$", message = "Cor do menu inválida.") String secondaryColor
+    @Pattern(regexp = "^#[0-9A-Fa-f]{6}$", message = "Cor do menu inválida.") String secondaryColor,
+    @Pattern(regexp = "^#[0-9A-Fa-f]{6}$", message = "Cor de quitar saldo inválida.") String settleButtonColor
 ) {}

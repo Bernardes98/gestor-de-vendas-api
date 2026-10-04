@@ -14,13 +14,14 @@ public record CompanySettingsResponse(
     String city,
     String primaryColor,
     String secondaryColor,
+    String settleButtonColor,
     boolean active
 ) {
     public static CompanySettingsResponse from(Company company) {
         return new CompanySettingsResponse(
             company.getId(), company.getSlug(), company.getName(), company.getLegalName(),
             company.getDocument(), company.getPhone(), company.getEmail(), company.getAddress(),
-            company.getCity(), company.getPrimaryColor(), company.getSecondaryColor(), company.isActive()
+            company.getCity(), company.getPrimaryColor(), company.getSecondaryColor(), company.getSettleButtonColor(), company.isActive()
         );
     }
 }

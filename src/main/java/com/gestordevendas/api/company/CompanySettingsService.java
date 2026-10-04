@@ -35,7 +35,7 @@ public class CompanySettingsService {
         Company company = companyRepository.findById(context.companyId()).orElseThrow();
         company.updateSettings(
             request.name(), request.legalName(), request.document(), request.phone(), request.email(),
-            request.address(), request.city(), request.primaryColor(), request.secondaryColor()
+            request.address(), request.city(), request.primaryColor(), request.secondaryColor(), request.settleButtonColor()
         );
         return CompanySettingsResponse.from(company);
     }

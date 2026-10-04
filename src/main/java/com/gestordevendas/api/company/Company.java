@@ -47,6 +47,9 @@ public class Company {
     @Column(name = "cor_secundaria", nullable = false, length = 20)
     private String secondaryColor = "#101827";
 
+    @Column(name = "cor_quitar_saldo", nullable = false, length = 20)
+    private String settleButtonColor = "#dcfce7";
+
     @Column(name = "ativa", nullable = false)
     private boolean active = true;
 
@@ -87,13 +90,15 @@ public class Company {
     public String getCity() { return cidade; }
     public String getPrimaryColor() { return primaryColor; }
     public String getSecondaryColor() { return secondaryColor; }
+    public String getSettleButtonColor() { return settleButtonColor; }
     public String getLogoKey() { return logoKey; }
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
     public void setLogoKey(String logoKey) { this.logoKey = logoKey; }
 
     public void updateSettings(String name, String legalName, String document, String phone, String email,
-                               String address, String city, String primaryColor, String secondaryColor) {
+                               String address, String city, String primaryColor, String secondaryColor, String settleButtonColor) {
+        this.settleButtonColor = settleButtonColor == null ? "#dcfce7" : settleButtonColor;
         this.name = name.trim();
         this.legalName = blankToNull(legalName);
         this.document = blankToNull(document);
