@@ -104,7 +104,7 @@ public class ProductService {
     public void deactivate(UUID id) {
         TenantContext context = currentTenant();
         tenantGuard.requireOwnerOrAdmin(context);
-        requireActive(id, context.companyId()).setActive(false);
+        requireProduct(id, context.companyId()).setActive(false);
     }
 
     public Product requireProduct(UUID id, UUID companyId) {
