@@ -57,14 +57,28 @@ public class ClientProductPrice {
     public BigDecimal getPrice() {
         if ("preco_fixo".equals(type) && fixedPrice != null) return fixedPrice;
         if ("taxa".equals(type) && rate != null) {
-            return product.getSalePrice().multiply(BigDecimal.ONE.add(rate.divide(BigDecimal.valueOf(100), 8, RoundingMode.HALF_UP)))
+            return product.getCostPrice().multiply(BigDecimal.ONE.add(rate.divide(BigDecimal.valueOf(100), 8, RoundingMode.HALF_UP)))
                 .setScale(2, RoundingMode.HALF_UP);
         }
         return product.getSalePrice();
     }
+    public String getType() { return type; }
+    public BigDecimal getRate() { return rate; }
+    public BigDecimal getFixedPrice() { return fixedPrice; }
+
     public void setPrice(BigDecimal price) {
+        setFixedPrice(price);
+    }
+
+    public void setFixedPrice(BigDecimal price) {
         this.type = "preco_fixo";
         this.fixedPrice = price;
         this.rate = null;
+    }
+
+    public void setRate(BigDecimal rate) {
+        this.type = "taxa";
+        this.rate = rate;
+        this.fixedPrice = null;
     }
 }

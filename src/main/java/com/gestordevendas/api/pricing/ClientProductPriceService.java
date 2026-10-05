@@ -11,6 +11,7 @@ import com.gestordevendas.api.tenant.TenantGuard;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @Service
@@ -39,8 +40,9 @@ public class ClientProductPriceService {
         clientService.requireActive(clientId, context.companyId());
         Product product = productService.requireProduct(productId, context.companyId());
         return repository.findByCompanyIdAndClientIdAndProductId(context.companyId(), clientId, productId)
-            .map(value -> new ProductPriceResponse(clientId, productId, value.getPrice(), true))
-            .orElseGet(() -> new ProductPriceResponse(clientId, productId, product.getSalePrice(), false));
+            .map(value -> new ProductPriceResponse(clientId, productId, value.getPrice(), true,
+                "taxa".equals(value.getType()) ? "PERCENT" : "FIXED", value.getRate(), value.getFixedPrice()))
+            .orElseGet(() -> new ProductPriceResponse(clientId, productId, product.getSalePrice(), false, "DEFAULT", null, null));
     }
 
     @Transactional
@@ -49,11 +51,23 @@ public class ClientProductPriceService {
         tenantGuard.requireOwnerOrAdmin(context);
         Client client = clientService.requireActive(clientId, context.companyId());
         Product product = productService.requireProduct(productId, context.companyId());
+        BigDecimal initialPrice = request.fixedPrice() != null ? request.fixedPrice()
+            : request.price() != null ? request.price() : product.getSalePrice();
         ClientProductPrice value = repository.findByCompanyIdAndClientIdAndProductId(context.companyId(), clientId, productId)
-            .orElseGet(() -> ClientProductPrice.create(client.getCompany(), client, product, request.price()));
-        value.setPrice(request.price());
+            .orElseGet(() -> ClientProductPrice.create(client.getCompany(), client, product, initialPrice));
+
+        if ("PERCENT".equalsIgnoreCase(request.mode())) {
+            if (request.rate() == null) throw new IllegalArgumentException("Taxa é obrigatória para regra percentual.");
+            value.setRate(request.rate());
+        } else {
+            BigDecimal fixed = request.fixedPrice() != null ? request.fixedPrice() : request.price();
+            if (fixed == null) throw new IllegalArgumentException("Preço fixo é obrigatório.");
+            value.setFixedPrice(fixed);
+        }
+
         repository.save(value);
-        return new ProductPriceResponse(clientId, productId, value.getPrice(), true);
+        return new ProductPriceResponse(clientId, productId, value.getPrice(), true,
+                "taxa".equals(value.getType()) ? "PERCENT" : "FIXED", value.getRate(), value.getFixedPrice());
     }
 
     @Transactional
