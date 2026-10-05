@@ -47,6 +47,9 @@ public class Client {
     @Column(name = "taxa_padrao", precision = 10, scale = 4)
     private BigDecimal defaultRate = BigDecimal.ZERO;
 
+    @Column(name = "taxa_entrega", precision = 12, scale = 2)
+    private BigDecimal deliveryFee = BigDecimal.ZERO;
+
     @Column(name = "observacoes")
     private String notes;
 
@@ -81,18 +84,26 @@ public class Client {
     public String getAddress() { return address; }
     public String getCity() { return city; }
     public BigDecimal getDefaultRate() { return defaultRate == null ? BigDecimal.ZERO : defaultRate; }
+    public BigDecimal getDeliveryFee() { return deliveryFee == null ? BigDecimal.ZERO : deliveryFee; }
     public String getNotes() { return notes; }
     public UUID getOrderTokenValue() { return orderToken; }
     public String getOrderToken() { return orderToken == null ? null : orderToken.toString(); }
     public boolean isActive() { return active; }
 
-    public void update(String name, String document, String phone, String email, String address, String city, String notes) {
+    public void update(String name, String document, String phone, String email, String address, String city, BigDecimal defaultRate, BigDecimal deliveryFee, String notes) {
         this.name = name.trim();
         this.document = blankToNull(document);
         this.phone = blankToNull(phone);
         this.address = blankToNull(address);
         this.city = blankToNull(city);
+        this.defaultRate = defaultRate == null ? BigDecimal.ZERO : defaultRate;
+        this.deliveryFee = deliveryFee == null ? BigDecimal.ZERO : deliveryFee;
         this.notes = blankToNull(notes);
+    }
+
+    // Compatibilidade com chamadas antigas (ex.: testes/fixtures) que ainda nao informam taxa padrao e taxa de entrega.
+    public void update(String name, String document, String phone, String email, String address, String city, String notes) {
+        update(name, document, phone, email, address, city, getDefaultRate(), getDeliveryFee(), notes);
     }
 
     public void setActive(boolean active) { this.active = active; }

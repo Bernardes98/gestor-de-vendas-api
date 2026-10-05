@@ -50,6 +50,9 @@ public class Company {
     @Column(name = "cor_quitar_saldo", nullable = false, length = 20)
     private String settleButtonColor = "#dcfce7";
 
+    @Column(name = "modo_taxa_cliente", nullable = false, length = 30)
+    private String clientChargeMode = "PERCENT";
+
     @Column(name = "ativa", nullable = false)
     private boolean active = true;
 
@@ -91,14 +94,16 @@ public class Company {
     public String getPrimaryColor() { return primaryColor; }
     public String getSecondaryColor() { return secondaryColor; }
     public String getSettleButtonColor() { return settleButtonColor; }
+    public String getClientChargeMode() { return clientChargeMode == null ? "PERCENT" : clientChargeMode; }
     public String getLogoKey() { return logoKey; }
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
     public void setLogoKey(String logoKey) { this.logoKey = logoKey; }
 
     public void updateSettings(String name, String legalName, String document, String phone, String email,
-                               String address, String city, String primaryColor, String secondaryColor, String settleButtonColor) {
+                               String address, String city, String primaryColor, String secondaryColor, String settleButtonColor, String clientChargeMode) {
         this.settleButtonColor = settleButtonColor == null ? "#dcfce7" : settleButtonColor;
+        this.clientChargeMode = "DELIVERY_FEE".equals(clientChargeMode) ? "DELIVERY_FEE" : "PERCENT";
         this.name = name.trim();
         this.legalName = blankToNull(legalName);
         this.document = blankToNull(document);

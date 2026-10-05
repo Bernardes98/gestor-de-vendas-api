@@ -76,7 +76,7 @@ public class ClientService {
     }
 
     private void apply(Client client, ClientRequest request) {
-        client.update(request.name(), request.document(), request.phone(), request.email(), request.address(), request.city(), request.notes());
+        client.update(request.name(), request.document(), request.phone(), request.email(), request.address(), request.city(), request.defaultRate(), request.deliveryFee(), request.notes());
     }
 
     private TenantContext currentTenant() {
