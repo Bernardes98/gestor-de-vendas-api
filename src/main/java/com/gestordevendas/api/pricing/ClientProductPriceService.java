@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -32,6 +33,22 @@ public class ClientProductPriceService {
         this.currentUserService = currentUserService;
         this.tenantContextService = tenantContextService;
         this.tenantGuard = tenantGuard;
+    }
+
+    @Transactional(readOnly = true)
+    public List<ProductPriceResponse> list(UUID clientId) {
+        TenantContext context = currentTenant();
+        clientService.requireActive(clientId, context.companyId());
+        return repository.findAllByCompanyIdAndClientId(context.companyId(), clientId).stream()
+            .map(value -> new ProductPriceResponse(
+                clientId,
+                value.getProductReferenceId(),
+                value.getPrice(),
+                true,
+                "taxa".equals(value.getType()) ? "PERCENT" : "FIXED",
+                value.getRate(),
+                value.getFixedPrice()))
+            .toList();
     }
 
     @Transactional(readOnly = true)
