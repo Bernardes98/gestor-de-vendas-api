@@ -7,6 +7,7 @@ import com.gestordevendas.api.company.Company;
 import com.gestordevendas.api.company.CompanyRepository;
 import com.gestordevendas.api.product.Product;
 import com.gestordevendas.api.product.ProductRepository;
+import com.gestordevendas.api.inventory.InventoryLotService;
 import com.gestordevendas.api.report.BusinessTimeProperties;
 import com.gestordevendas.api.stock.StockMovementType;
 import com.gestordevendas.api.stock.StockService;
@@ -36,6 +37,7 @@ public class PurchaseService {
     private final CompanyRepository companyRepository;
     private final UserRepository userRepository;
     private final StockService stockService;
+    private final InventoryLotService inventoryLotService;
     private final CurrentUserService currentUserService;
     private final TenantContextService tenantContextService;
     private final TenantGuard tenantGuard;
@@ -44,7 +46,7 @@ public class PurchaseService {
 
     public PurchaseService(PurchaseRepository repository, PurchaseItemRepository itemRepository,
                            PurchaseStateRepository stateRepository, ProductRepository productRepository,
-                           CompanyRepository companyRepository, UserRepository userRepository, StockService stockService,
+                           CompanyRepository companyRepository, UserRepository userRepository, StockService stockService, InventoryLotService inventoryLotService,
                            CurrentUserService currentUserService, TenantContextService tenantContextService,
                            TenantGuard tenantGuard, AuditService auditService, BusinessTimeProperties businessTimeProperties) {
         this.repository = repository;
@@ -54,6 +56,7 @@ public class PurchaseService {
         this.companyRepository = companyRepository;
         this.userRepository = userRepository;
         this.stockService = stockService;
+        this.inventoryLotService = inventoryLotService;
         this.currentUserService = currentUserService;
         this.tenantContextService = tenantContextService;
         this.tenantGuard = tenantGuard;
@@ -84,6 +87,7 @@ public class PurchaseService {
         List<PurchaseItem> items = buildItems(request.items(), context, company, purchase, true);
         itemRepository.saveAll(items);
         purchase.setTotal(total(items));
+        for (PurchaseItem item : items) inventoryLotService.addPurchase(company, purchase, item.getProduct(), item.getQuantity(), item.getUnitCost());
         for (PurchaseItem item : items.stream().filter(PurchaseItem::isStockMoved).sorted(Comparator.comparing(i -> i.getProduct().getId())).toList()) {
             stockService.applyDelta(context, item.getProduct(), item.getQuantity(), StockMovementType.COMPRA,
                 "COMPRA", purchase.getId(), null, "INSUFFICIENT_STOCK", "Estoque insuficiente.");
@@ -97,6 +101,7 @@ public class PurchaseService {
         TenantContext context = adminContext();
         validateUniqueProducts(request.items());
         Purchase purchase = requireActive(id, context.companyId());
+        inventoryLotService.assertPurchaseUntouched(context.companyId(), id);
         List<PurchaseItem> oldItems = itemRepository.findAllByCompanyIdAndPurchaseId(context.companyId(), id);
         Map<UUID, BigDecimal> oldQty = stockQuantities(oldItems);
         Company company = companyRepository.findById(context.companyId()).orElseThrow();
@@ -116,10 +121,12 @@ public class PurchaseService {
                     "Não é possível reverter a compra porque o estoque ficaria negativo.");
             }
         }
+        inventoryLotService.removePurchase(context.companyId(), id);
         itemRepository.deleteAllByCompanyIdAndPurchaseId(context.companyId(), id);
         itemRepository.flush();
         itemRepository.saveAll(newItems);
         purchase.update(toDate(request.purchasedAt()), request.notes());
+        for (PurchaseItem item : newItems) inventoryLotService.addPurchase(company, purchase, item.getProduct(), item.getQuantity(), item.getUnitCost());
         purchase.setTotal(total(newItems));
         auditService.record("PURCHASE_UPDATED", context.companyId(), context.userId(), "PURCHASE", purchase.getId(), null, Map.of());
         return response(purchase, newItems);
@@ -129,12 +136,14 @@ public class PurchaseService {
     public void cancel(UUID id) {
         TenantContext context = adminContext();
         Purchase purchase = requireActive(id, context.companyId());
+        inventoryLotService.assertPurchaseUntouched(context.companyId(), id);
         List<PurchaseItem> items = itemRepository.findAllByCompanyIdAndPurchaseId(context.companyId(), id);
         for (PurchaseItem item : items.stream().filter(PurchaseItem::isStockMoved).sorted(Comparator.comparing(i -> i.getProduct().getId())).toList()) {
             stockService.applyDelta(context, item.getProduct(), item.getQuantity().negate(), StockMovementType.COMPRA_REVERSAO,
                 "COMPRA", id, "Cancelamento de compra", "STOCK_REVERSAL_NOT_ALLOWED",
                 "Não é possível cancelar a compra porque o estoque ficaria negativo.");
         }
+        inventoryLotService.removePurchase(context.companyId(), id);
         User user = userRepository.findById(context.userId()).orElseThrow();
         PurchaseState state = stateRepository.findById(id).orElseGet(() -> PurchaseState.create(purchase));
         state.cancel(user, Instant.now());
@@ -151,7 +160,6 @@ public class PurchaseService {
             // Uma compra é uma entrada de estoque: ativa o controle do produto e mantém o custo atual
             // sincronizado com o custo unitário informado na compra.
             product.enableStockControl();
-            product.setCostPrice(r.unitCost());
             return PurchaseItem.create(company, purchase, product, r.quantity(), r.unitCost());
         }).toList();
     }

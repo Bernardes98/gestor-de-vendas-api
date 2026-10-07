@@ -10,6 +10,7 @@ import com.gestordevendas.api.company.CompanyRepository;
 import com.gestordevendas.api.pricing.ClientProductPriceRepository;
 import com.gestordevendas.api.product.Product;
 import com.gestordevendas.api.product.ProductRepository;
+import com.gestordevendas.api.inventory.InventoryLotService;
 import com.gestordevendas.api.report.BusinessTimeProperties;
 import com.gestordevendas.api.stock.StockMovementType;
 import com.gestordevendas.api.stock.StockService;
@@ -44,6 +45,7 @@ public class SaleService {
     private final CompanyRepository companyRepository;
     private final UserRepository userRepository;
     private final StockService stockService;
+    private final InventoryLotService inventoryLotService;
     private final CurrentUserService currentUserService;
     private final TenantContextService tenantContextService;
     private final TenantGuard tenantGuard;
@@ -54,7 +56,7 @@ public class SaleService {
                        SaleStateRepository stateRepository, SaleNumberService numberService,
                        ProductRepository productRepository, ClientRepository clientRepository,
                        ClientProductPriceRepository priceRepository, CompanyRepository companyRepository,
-                       UserRepository userRepository, StockService stockService, CurrentUserService currentUserService,
+                       UserRepository userRepository, StockService stockService, InventoryLotService inventoryLotService, CurrentUserService currentUserService,
                        TenantContextService tenantContextService, TenantGuard tenantGuard, AuditService auditService,
                        BusinessTimeProperties businessTimeProperties) {
         this.repository = repository;
@@ -68,6 +70,7 @@ public class SaleService {
         this.companyRepository = companyRepository;
         this.userRepository = userRepository;
         this.stockService = stockService;
+        this.inventoryLotService = inventoryLotService;
         this.currentUserService = currentUserService;
         this.tenantContextService = tenantContextService;
         this.tenantGuard = tenantGuard;
@@ -106,6 +109,7 @@ public class SaleService {
             stockService.applyDelta(context, item.getProduct(), item.getQuantity().negate(), StockMovementType.VENDA,
                 "VENDA", sale.getId(), null, "INSUFFICIENT_STOCK", "Estoque insuficiente para este produto.");
         }
+        for (SaleItem item : items.stream().filter(SaleItem::isStockMoved).toList()) inventoryLotService.consume(company, sale, item.getProduct(), item.getQuantity());
         itemRepository.saveAll(items);
         applyTotals(sale, items, request.paymentType());
         sale.setPaymentDetails(request.paymentType() == SalePaymentType.PRAZO ? null : request.paymentMethod(), request.cashReceived());
@@ -129,6 +133,7 @@ public class SaleService {
         Client client = requireClient(request.clientId(), context.companyId());
         Company company = companyRepository.findById(context.companyId()).orElseThrow();
         List<SaleItem> oldItems = itemRepository.findAllByCompanyIdAndSaleIdOrderByPositionAsc(context.companyId(), id);
+        inventoryLotService.releaseSale(context.companyId(), id);
         List<SaleItem> newItems = buildItems(request.items(), context, company, sale, client);
         BigDecimal newTotal = newItems.stream().map(SaleItem::getLineTotal).reduce(BigDecimal.ZERO, BigDecimal::add);
         if (request.paymentType() == SalePaymentType.PRAZO && newTotal.compareTo(paid) < 0) {
@@ -136,6 +141,7 @@ public class SaleService {
                 "O total da venda não pode ser menor que o valor já recebido.");
         }
         applySaleStockDelta(context, oldItems, newItems, id);
+        for (SaleItem item : newItems.stream().filter(SaleItem::isStockMoved).toList()) inventoryLotService.consume(company, sale, item.getProduct(), item.getQuantity());
         itemRepository.deleteAllByCompanyIdAndSaleId(context.companyId(), id);
         itemRepository.flush();
         itemRepository.saveAll(newItems);
@@ -161,6 +167,7 @@ public class SaleService {
         tenantGuard.requireOwnerOrAdmin(context);
         Sale sale = requireActive(id, context.companyId());
         List<SaleItem> items = itemRepository.findAllByCompanyIdAndSaleIdOrderByPositionAsc(context.companyId(), id);
+        inventoryLotService.releaseSale(context.companyId(), id);
         for (SaleItem item : items.stream().filter(SaleItem::isStockMoved)
             .sorted(Comparator.comparing(i -> i.getProduct().getId())).toList()) {
             stockService.applyDelta(context, item.getProduct(), item.getQuantity(), StockMovementType.VENDA_REVERSAO,
@@ -266,8 +273,9 @@ public class SaleService {
             }
             if (price == null) price = product.getSalePrice();
             BigDecimal lineTotal = money(price.multiply(r.quantity()));
-            BigDecimal lineCost = money(product.getCostPrice().multiply(r.quantity()));
-            return SaleItem.create(company, sale, product, r.quantity(), money(price), money(product.getCostPrice()), lineTotal, lineCost, position);
+            BigDecimal fifoCost = product.isStockControlled() ? inventoryLotService.fifoUnitCost(company, product, r.quantity()) : product.getCostPrice();
+            BigDecimal lineCost = money(fifoCost.multiply(r.quantity()));
+            return SaleItem.create(company, sale, product, r.quantity(), money(price), money(fifoCost), lineTotal, lineCost, position);
         }).toList();
     }
 
