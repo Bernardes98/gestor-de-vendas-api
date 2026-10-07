@@ -16,6 +16,7 @@ public record ProductResponse(
     UUID categoryId,
     String categoryName,
     BigDecimal salePrice,
+    BigDecimal profitAmount,
     boolean stockControlled,
     BigDecimal currentStock,
     BigDecimal minimumStock,

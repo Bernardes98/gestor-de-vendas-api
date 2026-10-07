@@ -123,8 +123,12 @@ public class ProductService {
             category = categoryRepository.findByIdAndCompanyId(request.categoryId(), companyId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "CATEGORY_NOT_FOUND", "Categoria não encontrada."));
         }
+        BigDecimal profit = request.profitAmount() == null
+            ? request.salePrice().subtract(request.costPrice()).max(BigDecimal.ZERO)
+            : request.profitAmount();
+        BigDecimal salePrice = request.costPrice().add(profit);
         product.update(request.name(), request.code(), request.brand(), request.description(), category,
-            request.costPrice(), request.salePrice(), request.stockControlled(),
+            request.costPrice(), salePrice, request.stockControlled(),
             request.minimumStock() == null ? BigDecimal.ZERO : request.minimumStock());
         if (request.active() != null) product.setActive(request.active());
     }
@@ -139,7 +143,7 @@ public class ProductService {
             .toList();
         return new ProductResponse(product.getId(), product.getName(), product.getCode(), product.getBrand(), product.getDescription(),
             product.getCategory() == null ? null : product.getCategory().getId(),
-            product.getCategory() == null ? null : product.getCategory().getName(), product.getSalePrice(),
+            product.getCategory() == null ? null : product.getCategory().getName(), product.getSalePrice(), product.getProfitAmount(),
             product.isStockControlled(), product.getCurrentStock(), product.getMinimumStock(), canSeeCost ? product.getCostPrice() : null, margin, product.isActive(), product.getOrderIndex(), photos);
     }
 

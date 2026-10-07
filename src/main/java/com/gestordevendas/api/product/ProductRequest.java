@@ -17,6 +17,7 @@ public record ProductRequest(
     UUID categoryId,
     @NotNull @DecimalMin("0.00") @Digits(integer = 12, fraction = 2) BigDecimal costPrice,
     @NotNull @DecimalMin("0.00") @Digits(integer = 12, fraction = 2) BigDecimal salePrice,
+    @DecimalMin("0.00") @Digits(integer = 12, fraction = 2) BigDecimal profitAmount,
     boolean stockControlled,
     @DecimalMin("0.000") @Digits(integer = 11, fraction = 3) BigDecimal minimumStock,
     Boolean active

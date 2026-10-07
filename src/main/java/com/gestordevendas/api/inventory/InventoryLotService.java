@@ -11,11 +11,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 @Service
 public class InventoryLotService {
@@ -49,7 +45,6 @@ public class InventoryLotService {
           )
   );
 
-  syncCost(company.getId(), product);
  }
 
  public void assertPurchaseUntouched(UUID companyId, UUID purchaseId) {
@@ -159,7 +154,7 @@ public class InventoryLotService {
    throw insufficientStock(product);
   }
 
-  syncCost(company.getId(), product);
+
  }
 
  public void releaseSale(UUID companyId, UUID saleId) {
@@ -184,9 +179,7 @@ public class InventoryLotService {
   consumptions.deleteAll(saleConsumptions);
   consumptions.flush();
 
-  products.forEach(
-          product -> syncCost(companyId, product)
-  );
+
  }
 
  private void ensureCoverage(
@@ -222,16 +215,12 @@ public class InventoryLotService {
  }
 
  public void syncCost(UUID companyId, Product product) {
-  var fifo = lots.fifo(
-          companyId,
-          product.getId()
-  );
-
-  if (!fifo.isEmpty()) {
-   product.setCostPrice(
-           fifo.get(0).getUnitCost()
-   );
-  }
+  lots.allForCompany(companyId).stream()
+          .filter(lot -> lot.getProduct().getId().equals(product.getId()))
+          .max(Comparator.comparing(InventoryLot::getEntryDate)
+                  .thenComparing(lot -> lot.getCreatedAt() == null ? java.time.Instant.EPOCH : lot.getCreatedAt())
+                  .thenComparing(InventoryLot::getId))
+          .ifPresent(lot -> product.applyPurchaseCost(lot.getUnitCost()));
  }
 
  public List<InventoryProductResponse> summary(UUID companyId) {

@@ -46,6 +46,9 @@ public class Product {
     @Column(name = "preco_padrao", nullable = false, precision = 14, scale = 2)
     private BigDecimal salePrice = BigDecimal.ZERO;
 
+    @Column(name = "lucro_valor", nullable = false, precision = 14, scale = 2)
+    private BigDecimal profitAmount = BigDecimal.ZERO;
+
     @Column(name = "controla_estoque", nullable = false)
     private boolean stockControlled;
 
@@ -87,6 +90,7 @@ public class Product {
     public String getDescription() { return description; }
     public BigDecimal getCostPrice() { return costPrice; }
     public BigDecimal getSalePrice() { return salePrice; }
+    public BigDecimal getProfitAmount() { return profitAmount; }
     public boolean isStockControlled() { return stockControlled; }
     public BigDecimal getCurrentStock() { return currentStock; }
     public BigDecimal getMinimumStock() { return minimumStock; }
@@ -97,6 +101,10 @@ public class Product {
     public void setOrderIndex(int orderIndex) { this.orderIndex = orderIndex; }
     public void enableStockControl() { this.stockControlled = true; }
     public void setCostPrice(BigDecimal costPrice) { this.costPrice = costPrice == null ? BigDecimal.ZERO : costPrice; }
+    public void applyPurchaseCost(BigDecimal costPrice) {
+        this.costPrice = costPrice == null ? BigDecimal.ZERO : costPrice;
+        this.salePrice = this.costPrice.add(this.profitAmount == null ? BigDecimal.ZERO : this.profitAmount);
+    }
 
     public void update(String name, String code, String description, ProductCategory category,
                        BigDecimal costPrice, BigDecimal salePrice, boolean stockControlled) {
@@ -112,6 +120,7 @@ public class Product {
         this.category = category;
         this.costPrice = costPrice == null ? BigDecimal.ZERO : costPrice;
         this.salePrice = salePrice == null ? BigDecimal.ZERO : salePrice;
+        this.profitAmount = this.salePrice.subtract(this.costPrice).max(BigDecimal.ZERO);
         this.stockControlled = stockControlled;
         this.minimumStock = minimumStock == null ? BigDecimal.ZERO : minimumStock;
     }
