@@ -1,0 +1,24 @@
+package com.gestordevendas.api.food;
+import com.gestordevendas.api.common.error.ApiException;
+import com.gestordevendas.api.company.CompanyRepository;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.transaction.annotation.Transactional;
+import java.math.*;
+import java.util.*;
+@RestController @RequestMapping("/api/public/snacks") public class PublicSnackController {
+ private final CompanyRepository companies; private final SnackRepository snacks; private final BeverageRepository beverages; private final SnackOrderRepository orders;
+ public PublicSnackController(CompanyRepository c,SnackRepository s,BeverageRepository b,SnackOrderRepository o){companies=c;snacks=s;beverages=b;orders=o;}
+ private com.gestordevendas.api.company.Company company(String slug){var c=companies.findBySlug(slug).orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"NOT_FOUND","Cardápio não encontrado"));if(!c.isActive())throw new ApiException(HttpStatus.NOT_FOUND,"NOT_FOUND","Cardápio indisponível");return c;}
+ public record Catalog(String companyName,List<SnackResponse> snacks,List<BeverageResponse> beverages){}
+ @GetMapping("/{slug}") @Transactional(readOnly=true) public Catalog catalog(@PathVariable String slug){var c=company(slug);return new Catalog(c.getName(),snacks.findAllByCompany_IdOrderByNameAsc(c.getId()).stream().map(SnackResponse::from).toList(),beverages.findAllByCompany_IdOrderByNameAsc(c.getId()).stream().map(BeverageResponse::from).toList());}
+ public record Item(UUID id,int quantity,Map<String,Integer> additionals,List<String> without,String notes){}
+ public record Request(String clientName,String phone,String address,String serviceType,String notes,List<Item> snacks,List<Item> beverages){}
+ public record Receipt(UUID id,String status,BigDecimal total){}
+ private ApiException invalid(){return new ApiException(HttpStatus.BAD_REQUEST,"INVALID_PUBLIC_ORDER","Confira os dados do pedido");}
+ @PostMapping("/{slug}") @Transactional public Receipt create(@PathVariable String slug,@RequestBody Request r){var c=company(slug);if(r==null||r.clientName()==null||r.clientName().isBlank()||r.clientName().length()>200||r.phone()==null||!r.phone().replaceAll("\\D", "").matches("[0-9]{10,13}")||!Set.of("DELIVERY","PICKUP").contains(r.serviceType())||("DELIVERY".equals(r.serviceType())&&(r.address()==null||r.address().isBlank()||r.address().length()>255))||r.notes()!=null&&r.notes().length()>1000)throw invalid();
+ var snackItems=r.snacks()==null?List.<Item>of():r.snacks();var drinkItems=r.beverages()==null?List.<Item>of():r.beverages();if(snackItems.isEmpty()&&drinkItems.isEmpty()||snackItems.size()+drinkItems.size()>40)throw invalid();BigDecimal total=BigDecimal.ZERO;var lines=new ArrayList<String>();
+ for(var i:snackItems){if(i.quantity()<1||i.quantity()>50)throw invalid();var snack=snacks.findByIdAndCompany_Id(i.id(),c.getId()).orElseThrow(this::invalid);var unit=snack.getPrice();var extra=new ArrayList<String>();var add=i.additionals()==null?Map.<String,Integer>of():i.additionals();for(var entry:add.entrySet()){if(entry.getValue()==null||entry.getValue()<0||entry.getValue()>10)throw invalid();var a=snack.getAdditionals().stream().filter(x->x.getName().equals(entry.getKey())).findFirst().orElseThrow(this::invalid);unit=unit.add(a.getPrice().multiply(BigDecimal.valueOf(entry.getValue())));if(entry.getValue()>0)extra.add(entry.getKey()+" x"+entry.getValue());}var without=i.without()==null?List.<String>of():i.without();if(!snack.getIngredients().containsAll(without)||i.notes()!=null&&i.notes().length()>300)throw invalid();var line=i.quantity()+"x "+snack.getName()+" - R$ "+unit.multiply(BigDecimal.valueOf(i.quantity())).setScale(2,RoundingMode.HALF_UP);if(!without.isEmpty())line+="\n  Sem: "+String.join(", ",without);if(!extra.isEmpty())line+="\n  Adicionais: "+String.join(", ",extra);if(i.notes()!=null&&!i.notes().isBlank())line+="\n  Observações: "+i.notes().trim();lines.add(line);total=total.add(unit.multiply(BigDecimal.valueOf(i.quantity())));}
+ for(var i:drinkItems){if(i.quantity()<1||i.quantity()>50)throw invalid();var drink=beverages.findByIdAndCompany_Id(i.id(),c.getId()).orElseThrow(this::invalid);var amount=drink.getPrice().multiply(BigDecimal.valueOf(i.quantity()));lines.add(i.quantity()+"x "+drink.getName()+" - R$ "+amount.setScale(2,RoundingMode.HALF_UP));total=total.add(amount);}
+ var order=SnackOrder.create(c,null,r.clientName().trim(),r.phone().trim(),"DELIVERY".equals(r.serviceType())?r.address().trim():"",String.join("\n",lines),total,BigDecimal.ZERO,BigDecimal.ZERO,PaymentMethod.PIX,null);order.setService(r.serviceType(),null);order.setOrderInfo(r.notes());order.setPublicApprovalStatus("AWAITING");orders.save(order);return new Receipt(order.getId(),"AWAITING",total.setScale(2,RoundingMode.HALF_UP));}
+}
