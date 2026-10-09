@@ -126,7 +126,9 @@ public class ProductService {
         BigDecimal profit = request.profitAmount() == null
             ? request.salePrice().subtract(request.costPrice()).max(BigDecimal.ZERO)
             : request.profitAmount();
-        BigDecimal salePrice = request.costPrice().add(profit);
+        BigDecimal salePrice = request.stockControlled()
+            ? request.costPrice().add(profit)
+            : request.salePrice();
         product.update(request.name(), request.code(), request.brand(), request.description(), category,
             request.costPrice(), salePrice, request.stockControlled(),
             request.minimumStock() == null ? BigDecimal.ZERO : request.minimumStock());

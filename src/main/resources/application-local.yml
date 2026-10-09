@@ -18,6 +18,7 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: false
     validate-on-migrate: true
+    out-of-order: true
 
 app:
   security:
