@@ -28,6 +28,10 @@ public class MediaStorageService {
         return store("empresas/" + companyId + "/produtos/" + productId + "/", file);
     }
 
+    public StoredObject storeSnackImage(UUID companyId, UUID snackId, MultipartFile file) {
+        return store("empresas/" + companyId + "/lanches/" + snackId + "/", file);
+    }
+
     public StoredObject storeCompanyLogo(UUID companyId, MultipartFile file) {
         return store("empresas/" + companyId + "/logo/", file);
     }

@@ -1,0 +1,2 @@
+ALTER TABLE public.snacks ADD COLUMN IF NOT EXISTS photo_url VARCHAR(2048);
+ALTER TABLE public.snacks ADD COLUMN IF NOT EXISTS photo_storage_key VARCHAR(512);
