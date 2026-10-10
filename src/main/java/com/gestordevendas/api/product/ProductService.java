@@ -123,12 +123,7 @@ public class ProductService {
             category = categoryRepository.findByIdAndCompanyId(request.categoryId(), companyId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "CATEGORY_NOT_FOUND", "Categoria não encontrada."));
         }
-        BigDecimal profit = request.profitAmount() == null
-            ? request.salePrice().subtract(request.costPrice()).max(BigDecimal.ZERO)
-            : request.profitAmount();
-        BigDecimal salePrice = request.stockControlled()
-            ? request.costPrice().add(profit)
-            : request.salePrice();
+        BigDecimal salePrice = request.salePrice();
         product.update(request.name(), request.code(), request.brand(), request.description(), category,
             request.costPrice(), salePrice, request.stockControlled(),
             request.minimumStock() == null ? BigDecimal.ZERO : request.minimumStock());

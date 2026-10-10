@@ -15,6 +15,7 @@ public class PurchaseController {
     public PurchaseController(PurchaseService service) { this.service = service; }
 
     @GetMapping public List<PurchaseResponse> list() { return service.list(); }
+    @GetMapping("/cancelled") public List<PurchaseResponse> listCancelled() { return service.listCancelled(); }
     @GetMapping("/{id}") public PurchaseResponse get(@PathVariable UUID id) { return service.get(id); }
     @PostMapping public ResponseEntity<PurchaseResponse> create(@Valid @RequestBody PurchaseRequest request) {
         PurchaseResponse response = service.create(request);

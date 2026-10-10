@@ -68,6 +68,15 @@ public class PurchaseService {
     public List<PurchaseResponse> list() {
         TenantContext context = adminContext();
         return repository.findAllByCompanyIdOrderByPurchasedAtDesc(context.companyId()).stream()
+            .filter(p -> stateRepository.findById(p.getId()).map(s -> s.getStatus() != PurchaseStatus.CANCELADA).orElse(true))
+            .map(p -> response(p, context.companyId())).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<PurchaseResponse> listCancelled() {
+        TenantContext context = adminContext();
+        return repository.findAllByCompanyIdOrderByPurchasedAtDesc(context.companyId()).stream()
+            .filter(p -> stateRepository.findById(p.getId()).map(s -> s.getStatus() == PurchaseStatus.CANCELADA).orElse(false))
             .map(p -> response(p, context.companyId())).toList();
     }
 
