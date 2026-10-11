@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
 
 @Service
 public class PublicOrderService {
+    @org.springframework.beans.factory.annotation.Autowired private com.gestordevendas.api.push.PushService pushService;
     private final ClientRepository clientRepository;
     private final ProductRepository productRepository;
     private final ProductCategoryRepository categoryRepository;
@@ -125,6 +126,7 @@ public class PublicOrderService {
                 value.unitPrice(), value.lineTotal(), position);
         }).toList();
         itemRepository.saveAll(items);
+        pushService.order(companyId,"product");
         return response(order, items);
     }
 
