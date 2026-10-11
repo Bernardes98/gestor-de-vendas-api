@@ -1,7 +1,14 @@
 package com.gestordevendas.api.push;
 import com.fasterxml.jackson.databind.ObjectMapper;import nl.martijndwars.webpush.Notification;import org.springframework.beans.factory.annotation.Value;import org.springframework.stereotype.Service;import org.springframework.transaction.event.TransactionalEventListener;import org.springframework.transaction.event.TransactionPhase;import org.springframework.context.ApplicationEventPublisher;
 import java.util.*;
+import java.security.Security;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 @Service public class PushService {
+ static {
+  if (Security.getProvider("BC") == null) {
+   Security.addProvider(new BouncyCastleProvider());
+  }
+ }
  private final PushSubscriptionRepository repo;private final ApplicationEventPublisher publisher;private final ObjectMapper json;
  @Value("${push.vapid.public-key:}") private String publicKey; @Value("${push.vapid.private-key:}") private String privateKey; @Value("${push.vapid.subject:mailto:admin@gestordevendas.online}") private String subject;
  public PushService(PushSubscriptionRepository r,ApplicationEventPublisher p,ObjectMapper j){repo=r;publisher=p;json=j;}
