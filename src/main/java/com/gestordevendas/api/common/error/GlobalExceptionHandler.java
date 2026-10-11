@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -38,12 +39,25 @@ public class GlobalExceptionHandler {
             Exception exception,
             HttpServletRequest request
     ) {
+        String message = "Dados inválidos.";
+        if (exception instanceof MethodArgumentNotValidException validation) {
+            message = validation.getBindingResult().getFieldErrors().stream()
+                    .map(error -> error.getField() + ": " +
+                            (error.getDefaultMessage() == null ? "valor inválido" : error.getDefaultMessage()))
+                    .distinct()
+                    .limit(5)
+                    .reduce((first, next) -> first + "; " + next)
+                    .orElse(message);
+        } else if (exception instanceof ConstraintViolationException violation) {
+            message = violation.getConstraintViolations().stream()
+                    .map(error -> error.getPropertyPath() + ": " + error.getMessage())
+                    .distinct()
+                    .limit(5)
+                    .reduce((first, next) -> first + "; " + next)
+                    .orElse(message);
+        }
         return ResponseEntity.badRequest()
-                .body(new ApiError(
-                        "VALIDATION_ERROR",
-                        "Dados inválidos.",
-                        requestId(request)
-                ));
+                .body(new ApiError("VALIDATION_ERROR", message, requestId(request)));
     }
 
     @ExceptionHandler(Exception.class)
