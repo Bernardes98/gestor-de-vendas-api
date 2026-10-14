@@ -19,7 +19,7 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
  public record NewOrder(UUID company,String kind){}
  @TransactionalEventListener(phase=TransactionPhase.AFTER_COMMIT) public void deliver(NewOrder e){
  if(publicKey.isBlank()||privateKey.isBlank())return;
- try {var service=new nl.martijndwars.webpush.PushService(publicKey,privateKey,subject);var payload=json.writeValueAsString(Map.of("title","Novo pedido recebido!","body",e.kind().equals("snack")?"Novo pedido de lanche aguardando aprovação":"Novo pedido de produtos aguardando análise","url",e.kind().equals("snack")?"/comandas":"/pedidos","tag","pedido-"+UUID.randomUUID()));
+ try {var service=new nl.martijndwars.webpush.PushService(publicKey,privateKey,subject);var payload=json.writeValueAsString(Map.of("title","Novo pedido recebido!","body",e.kind().equals("snack")?"Novo pedido de lanche aguardando aprovação":"Novo pedido de produtos aguardando análise","url",e.kind().equals("snack")?"/comandas":"/pedidos","tag","pedido-"+(e.kind().equals("snack")?"snack-":"product-")+UUID.randomUUID()));
  for(var sub:repo.findByCompanyId(e.company()))try{service.send(new Notification(sub.getEndpoint(),sub.getP256dh(),sub.getAuth(),payload));}catch(Exception ex){System.err.println("Push não entregue: "+ex.getMessage());}
  }catch(Exception ex){System.err.println("Falha ao enviar push: "+ex.getMessage());}
  }
