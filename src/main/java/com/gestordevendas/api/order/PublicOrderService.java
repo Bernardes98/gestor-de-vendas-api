@@ -10,6 +10,8 @@ import com.gestordevendas.api.pricing.ClientProductPriceRepository;
 import com.gestordevendas.api.product.*;
 import com.gestordevendas.api.promotion.*;
 import com.gestordevendas.api.storage.ObjectStorage;
+import com.gestordevendas.api.sale.SaleItem;
+import com.gestordevendas.api.sale.SaleItemRepository;
 import com.gestordevendas.api.mail.MailProperties;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -32,16 +34,17 @@ public class PublicOrderService {
     private final ClientProductPromotionRepository promotionRepository;
     private final CustomerOrderRepository orderRepository;
     private final CustomerOrderItemRepository itemRepository;
+    private final SaleItemRepository saleItemRepository;
     private final ObjectStorage objectStorage;
     private final MailProperties mailProperties;
 
     public PublicOrderService(ClientRepository clientRepository, ProductRepository productRepository,
                               ProductCategoryRepository categoryRepository, ProductPhotoRepository photoRepository, ClientProductPriceRepository priceRepository,
                               ClientHiddenProductRepository hiddenRepository, ClientProductPromotionRepository promotionRepository, CustomerOrderRepository orderRepository,
-                              CustomerOrderItemRepository itemRepository, ObjectStorage objectStorage, MailProperties mailProperties) {
+                              CustomerOrderItemRepository itemRepository, SaleItemRepository saleItemRepository, ObjectStorage objectStorage, MailProperties mailProperties) {
         this.clientRepository = clientRepository; this.productRepository = productRepository; this.categoryRepository = categoryRepository; this.photoRepository = photoRepository;
         this.priceRepository = priceRepository; this.hiddenRepository = hiddenRepository; this.promotionRepository = promotionRepository; this.orderRepository = orderRepository;
-        this.itemRepository = itemRepository; this.objectStorage = objectStorage; this.mailProperties = mailProperties;
+        this.itemRepository = itemRepository; this.saleItemRepository = saleItemRepository; this.objectStorage = objectStorage; this.mailProperties = mailProperties;
     }
 
     @Transactional(readOnly = true)
@@ -161,7 +164,24 @@ public class PublicOrderService {
         Client client = requirePublicClient(token);
         return orderRepository.findFirstByCompanyIdAndClientIdAndStatusInOrderByCreatedAtDesc(client.getCompany().getId(), client.getId(),
                 List.of(CustomerOrderStatus.PENDENTE, CustomerOrderStatus.CONVERTIDO))
-            .map(order -> response(order, itemRepository.findAllByCompanyIdAndOrderIdOrderByPositionAsc(client.getCompany().getId(), order.getId())))
+             .map(order -> {
+                // A compra aprovada deve refletir os itens efetivamente vendidos,
+                // inclusive alterações posteriores feitas na edição da venda.
+                if (order.getStatus() == CustomerOrderStatus.CONVERTIDO && order.getSaleId() != null) {
+                    List<SaleItem> soldItems = saleItemRepository.findAllByCompanyIdAndSaleIdOrderByPositionAsc(
+                        client.getCompany().getId(), order.getSaleId());
+                    BigDecimal soldTotal = soldItems.stream().map(SaleItem::getLineTotal)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    return new CustomerOrderResponse(order.getId(), order.getClient().getId(), order.getClient().getName(),
+                        apiStatus(order.getStatus()), order.getViewedAt(), order.getNotes(), soldTotal,
+                        order.getSaleId(), order.getCreatedAt(), soldItems.stream()
+                            .map(item -> new CustomerOrderItemResponse(item.getId(), item.getProduct().getId(),
+                                item.getProductName(), item.getQuantity(), item.getUnitPrice(), item.getLineTotal()))
+                            .toList());
+                }
+                return response(order, itemRepository.findAllByCompanyIdAndOrderIdOrderByPositionAsc(
+                    client.getCompany().getId(), order.getId()));
+            })
             .orElse(null);
     }
 
