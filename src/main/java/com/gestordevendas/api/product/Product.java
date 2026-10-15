@@ -103,7 +103,7 @@ public class Product {
     public void setCostPrice(BigDecimal costPrice) { this.costPrice = costPrice == null ? BigDecimal.ZERO : costPrice; }
     public void applyPurchaseCost(BigDecimal costPrice) {
         this.costPrice = costPrice == null ? BigDecimal.ZERO : costPrice;
-        this.salePrice = this.costPrice.add(this.profitAmount == null ? BigDecimal.ZERO : this.profitAmount);
+        this.profitAmount = this.salePrice.subtract(this.costPrice);
     }
 
     public void update(String name, String code, String description, ProductCategory category,
@@ -120,7 +120,7 @@ public class Product {
         this.category = category;
         this.costPrice = costPrice == null ? BigDecimal.ZERO : costPrice;
         this.salePrice = salePrice == null ? BigDecimal.ZERO : salePrice;
-        this.profitAmount = this.salePrice.subtract(this.costPrice).max(BigDecimal.ZERO);
+        this.profitAmount = this.salePrice.subtract(this.costPrice);
         this.stockControlled = stockControlled;
         this.minimumStock = minimumStock == null ? BigDecimal.ZERO : minimumStock;
     }

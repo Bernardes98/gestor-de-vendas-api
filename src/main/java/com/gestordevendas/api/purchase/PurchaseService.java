@@ -169,7 +169,7 @@ public class PurchaseService {
             // Uma compra é uma entrada de estoque: ativa o controle do produto e mantém o custo atual
             // sincronizado com o custo unitário informado na compra.
             product.enableStockControl();
-            // O preço de venda acompanha o custo da compra mantendo o lucro fixo em reais.
+            // Atualiza somente o custo e o lucro informativo; preserva o preço de venda definido pela empresa.
             product.applyPurchaseCost(r.unitCost());
             return PurchaseItem.create(company, purchase, product, r.quantity(), r.unitCost());
         }).toList();
