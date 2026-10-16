@@ -3,10 +3,21 @@ package com.gestordevendas.api.order;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
 public interface CustomerOrderItemRepository extends JpaRepository<CustomerOrderItem, UUID> {
+
     @EntityGraph(attributePaths = "product")
-    List<CustomerOrderItem> findAllByCompanyIdAndOrderIdOrderByPositionAsc(UUID companyId, UUID orderId);
+    List<CustomerOrderItem> findAllByCompanyIdAndOrder_IdOrderByPositionAsc(
+            UUID companyId,
+            UUID orderId
+    );
+
+    @EntityGraph(attributePaths = "product")
+    List<CustomerOrderItem> findAllByCompanyIdAndOrder_IdInOrderByPositionAsc(
+            UUID companyId,
+            Collection<UUID> orderIds
+    );
 }

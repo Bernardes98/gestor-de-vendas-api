@@ -32,6 +32,7 @@ public class CustomerOrderItem {
         return item;
     }
 
+    public UUID getOrderId() { return order.getId(); }
     public int getPosition() { return position; }
     public UUID getId() { return id; }
     public Product getProduct() { return product; }

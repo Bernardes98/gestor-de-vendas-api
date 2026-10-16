@@ -148,7 +148,7 @@ public class PublicOrderService {
         List<PreparedItem> prepared = request.items().stream().map(item -> prepare(client, item)).toList();
         BigDecimal total = prepared.stream().map(PreparedItem::lineTotal).reduce(BigDecimal.ZERO, BigDecimal::add).setScale(2, RoundingMode.HALF_UP);
         order.updatePending(request.notes(), total);
-        itemRepository.deleteAll(itemRepository.findAllByCompanyIdAndOrderIdOrderByPositionAsc(companyId, order.getId()));
+        itemRepository.deleteAll(itemRepository.findAllByCompanyIdAndOrder_IdOrderByPositionAsc(companyId, order.getId()));
         itemRepository.flush();
         List<CustomerOrderItem> items = java.util.stream.IntStream.range(0, prepared.size()).mapToObj(position -> {
             PreparedItem value = prepared.get(position);
@@ -179,7 +179,7 @@ public class PublicOrderService {
                                 item.getProductName(), item.getQuantity(), item.getUnitPrice(), item.getLineTotal()))
                             .toList());
                 }
-                return response(order, itemRepository.findAllByCompanyIdAndOrderIdOrderByPositionAsc(
+                return response(order, itemRepository.findAllByCompanyIdAndOrder_IdOrderByPositionAsc(
                     client.getCompany().getId(), order.getId()));
             })
             .orElse(null);

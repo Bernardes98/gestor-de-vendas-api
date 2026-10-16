@@ -16,6 +16,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Collections;
 import java.util.UUID;
 
 @Service
@@ -50,8 +51,19 @@ public class CustomerOrderService {
     @Transactional(readOnly = true)
     public List<CustomerOrderResponse> list() {
         TenantContext context = currentTenant();
-        return repository.findAllByCompanyIdOrderByCreatedAtDesc(context.companyId()).stream()
-            .map(order -> response(order, context.companyId())).toList();
+        List<CustomerOrder> orders = repository.findAllByCompanyIdOrderByCreatedAtDesc(context.companyId());
+        if (orders.isEmpty()) return List.of();
+        // Load items in batches to avoid one database query per order.
+        Map<UUID, List<CustomerOrderItem>> itemsByOrder = new java.util.HashMap<>();
+        final int batchSize = 500;
+        for (int start = 0; start < orders.size(); start += batchSize) {
+            List<UUID> ids = orders.subList(start, Math.min(start + batchSize, orders.size()))
+                .stream().map(CustomerOrder::getId).toList();
+            itemRepository.findAllByCompanyIdAndOrder_IdInOrderByPositionAsc(context.companyId(), ids)
+                .forEach(item -> itemsByOrder.computeIfAbsent(item.getOrderId(), ignored -> new java.util.ArrayList<>()).add(item));
+        }
+        return orders.stream().map(order -> PublicOrderService.response(order,
+            itemsByOrder.getOrDefault(order.getId(), Collections.emptyList()))).toList();
     }
 
     @Transactional(readOnly = true)
@@ -154,7 +166,7 @@ public class CustomerOrderService {
 
     private CustomerOrderResponse response(CustomerOrder order, UUID companyId) {
         return PublicOrderService.response(order,
-            itemRepository.findAllByCompanyIdAndOrderIdOrderByPositionAsc(companyId, order.getId()));
+            itemRepository.findAllByCompanyIdAndOrder_IdOrderByPositionAsc(companyId, order.getId()));
     }
 
     private TenantContext currentTenant() {
