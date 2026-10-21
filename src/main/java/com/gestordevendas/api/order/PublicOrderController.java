@@ -18,6 +18,7 @@ public class PublicOrderController {
     @GetMapping("/recent") public ResponseEntity<CustomerOrderResponse> recent(@PathVariable String token) {
         CustomerOrderResponse response = service.recent(token); return response == null ? ResponseEntity.noContent().build() : ResponseEntity.ok(response);
     }
+    @GetMapping("/history") public java.util.List<PublicPurchaseHistoryResponse> history(@PathVariable String token) { return service.history(token); }
     @PostMapping public ResponseEntity<CustomerOrderResponse> create(@PathVariable String token, @Valid @RequestBody PublicOrderRequest request) {
         CustomerOrderResponse response = service.create(token, request);
         return ResponseEntity.created(URI.create("/api/orders/" + response.id())).body(response);

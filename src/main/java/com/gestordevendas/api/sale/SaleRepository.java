@@ -50,5 +50,15 @@ public interface SaleRepository extends JpaRepository<Sale, UUID> {
                                     @Param("from") Instant from,
                                     @Param("to") Instant to);
 
+    @Query(value = """
+        select s.* from public.vendas s
+        left join api_internal.venda_estados ve on ve.venda_id = s.id
+        where s.empresa_id = :companyId and s.cliente_id = :clientId
+          and coalesce(ve.status, 'ATIVA') = 'ATIVA'
+        order by s.data_venda desc, s.numero_empresa desc
+        limit 30
+        """, nativeQuery = true)
+    List<Sale> findPublicClientHistory(@Param("companyId") UUID companyId, @Param("clientId") UUID clientId);
+
     long countByCompanyId(UUID companyId);
 }

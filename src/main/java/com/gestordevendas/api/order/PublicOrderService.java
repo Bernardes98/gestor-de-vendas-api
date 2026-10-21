@@ -10,6 +10,8 @@ import com.gestordevendas.api.pricing.ClientProductPriceRepository;
 import com.gestordevendas.api.product.*;
 import com.gestordevendas.api.promotion.*;
 import com.gestordevendas.api.storage.ObjectStorage;
+import com.gestordevendas.api.sale.Sale;
+import com.gestordevendas.api.sale.SaleRepository;
 import com.gestordevendas.api.sale.SaleItem;
 import com.gestordevendas.api.sale.SaleItemRepository;
 import com.gestordevendas.api.mail.MailProperties;
@@ -35,6 +37,7 @@ public class PublicOrderService {
     private final CustomerOrderRepository orderRepository;
     private final CustomerOrderItemRepository itemRepository;
     private final SaleItemRepository saleItemRepository;
+    @org.springframework.beans.factory.annotation.Autowired private SaleRepository saleRepository;
     private final ObjectStorage objectStorage;
     private final MailProperties mailProperties;
 
@@ -183,6 +186,18 @@ public class PublicOrderService {
                     client.getCompany().getId(), order.getId()));
             })
             .orElse(null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PublicPurchaseHistoryResponse> history(String token) {
+        Client client = requirePublicClient(token);
+        UUID companyId = client.getCompany().getId();
+        return saleRepository.findPublicClientHistory(companyId, client.getId()).stream().map(sale ->
+            new PublicPurchaseHistoryResponse(sale.getId(), sale.getNumber(), sale.getSoldAt(), sale.getTotal(),
+                saleItemRepository.findAllByCompanyIdAndSaleIdOrderByPositionAsc(companyId, sale.getId()).stream()
+                    .map(item -> new PublicPurchaseHistoryResponse.Item(item.getProductName(), item.getQuantity(), item.getLineTotal()))
+                    .toList())
+        ).toList();
     }
 
     private PreparedItem prepare(Client client, PublicOrderRequest.Item request) {
