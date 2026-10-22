@@ -1,0 +1,1 @@
+ALTER TABLE public.snack_orders ADD COLUMN IF NOT EXISTS printed_at TIMESTAMPTZ;
