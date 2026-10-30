@@ -44,6 +44,7 @@ public class InventoryLotService {
                   purchase.getPurchasedAt()
           )
   );
+   syncCost(company.getId(), product);
 
  }
 
@@ -153,6 +154,7 @@ public class InventoryLotService {
   if (remaining.signum() > 0) {
    throw insufficientStock(product);
   }
+   syncCost(company.getId(), product);
 
 
  }
@@ -178,6 +180,7 @@ public class InventoryLotService {
 
   consumptions.deleteAll(saleConsumptions);
   consumptions.flush();
+   products.forEach(product -> syncCost(companyId, product));
 
 
  }
@@ -215,12 +218,11 @@ public class InventoryLotService {
  }
 
  public void syncCost(UUID companyId, Product product) {
-  lots.allForCompany(companyId).stream()
-          .filter(lot -> lot.getProduct().getId().equals(product.getId()))
-          .max(Comparator.comparing(InventoryLot::getEntryDate)
-                  .thenComparing(lot -> lot.getCreatedAt() == null ? java.time.Instant.EPOCH : lot.getCreatedAt())
-                  .thenComparing(InventoryLot::getId))
-          .ifPresent(lot -> product.applyPurchaseCost(lot.getUnitCost()));
+  // Exibe o custo do primeiro lote FIFO com saldo disponível.
+  lots.fifo(companyId, product.getId()).stream()
+      .filter(lot -> lot.getRemainingQuantity().signum() > 0)
+      .findFirst()
+      .ifPresent(lot -> product.applyPurchaseCost(lot.getUnitCost()));
  }
 
  public List<InventoryProductResponse> summary(UUID companyId) {

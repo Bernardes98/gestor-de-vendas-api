@@ -166,11 +166,8 @@ public class PurchaseService {
             Product product = requireActive
                 ? productRepository.findByIdAndCompanyIdAndActiveTrue(r.productId(), context.companyId()).orElseThrow(this::productNotFound)
                 : productRepository.findByIdAndCompanyId(r.productId(), context.companyId()).orElseThrow(this::productNotFound);
-            // Uma compra é uma entrada de estoque: ativa o controle do produto e mantém o custo atual
-            // sincronizado com o custo unitário informado na compra.
+            // O custo atual segue o lote FIFO com saldo, não a última compra.
             product.enableStockControl();
-            // Atualiza somente o custo e o lucro informativo; preserva o preço de venda definido pela empresa.
-            product.applyPurchaseCost(r.unitCost());
             return PurchaseItem.create(company, purchase, product, r.quantity(), r.unitCost());
         }).toList();
     }
