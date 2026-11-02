@@ -87,7 +87,14 @@ public class PublicOrderService {
         String appBaseUrl = trimTrailingSlash(mailProperties.appBaseUrl());
         String targetUrl = appBaseUrl + "/pedido/" + token;
         String title = companyName + " • Pedido online";
-        String description = "Faça seu pedido online com " + companyName + ".";
+        String description = "Acesse o site para fazer seu pedido online com " + companyName + ".";
+        String logo = client.getCompany().getLogoKey() == null ? null
+            : objectStorage.publicUrl(client.getCompany().getLogoKey());
+        String imageMeta = logo == null || !logo.startsWith("https://") ? ""
+            : "<meta property=\"og:image\" content=\"" + html(logo) + "\">"
+            + "<meta name=\"twitter:image\" content=\"" + html(logo) + "\">";
+        // Metadados renderizados no servidor para leitores de links (WhatsApp, Facebook etc.).
+        // Navegadores comuns seguem para o site; o link visivel continua sendo HTTPS.
         return "<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\">"
             + "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
             + "<title>" + html(title) + "</title>"
@@ -95,10 +102,14 @@ public class PublicOrderService {
             + "<meta property=\"og:title\" content=\"" + html(title) + "\">"
             + "<meta property=\"og:description\" content=\"" + html(description) + "\">"
             + "<meta property=\"og:url\" content=\"" + html(targetUrl) + "\">"
+            + imageMeta
+            + "<meta name=\"twitter:card\" content=\"summary_large_image\">"
             + "<meta name=\"twitter:title\" content=\"" + html(title) + "\">"
             + "<meta name=\"twitter:description\" content=\"" + html(description) + "\">"
-            + "<meta http-equiv=\"refresh\" content=\"0;url=" + html(targetUrl) + "\">"
-            + "</head><body><p>Abrindo pedido de " + html(companyName) + "...</p>"
+            + "<link rel=\"canonical\" href=\"" + html(targetUrl) + "\">"
+            + "<meta http-equiv=\"refresh\" content=\"2;url=" + html(targetUrl) + "\">"
+            + "</head><body><p>Abrindo o site de pedidos de " + html(companyName) + "...</p>"
+            + "<p><a href=\"" + html(targetUrl) + "\">Acessar pedido online</a></p>"
             + "<script>location.replace(" + jsString(targetUrl) + ");</script></body></html>";
     }
 
