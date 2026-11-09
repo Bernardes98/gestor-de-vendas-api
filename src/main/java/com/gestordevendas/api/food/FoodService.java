@@ -10,8 +10,11 @@ private void validateDiscount(SnackOrderRequest r){var d=r.discount()==null?BigD
 private String type(String value){String v=value==null?"DELIVERY":value.toUpperCase(Locale.ROOT);if(!Set.of("DELIVERY","PICKUP","TABLE").contains(v))throw new ApiException(HttpStatus.BAD_REQUEST,"SERVICE_TYPE","Tipo de atendimento inválido");return v;}
  private void validateTable(UUID company,String type,Integer number,UUID except){
   if("TABLE".equals(type)){
+   // Atendimento Mesa genérico: várias comandas independentes, sem mesa física vinculada.
+   // A regra de ocupação continua valendo somente para mesas numeradas do módulo Mesas.
+   if(number==null)return;
    features.require(company,CompanyFeature.TABLES);
-   if(number==null||!diningTables.existsByCompany_IdAndNumberAndActiveTrue(company,number))
+   if(!diningTables.existsByCompany_IdAndNumberAndActiveTrue(company,number))
     throw new ApiException(HttpStatus.BAD_REQUEST,"TABLE_NOT_FOUND","Mesa não cadastrada ou excluída");
    boolean occupied=except==null
     ? orders.existsByCompany_IdAndServiceTypeAndTableNumberAndPaymentStatus(company,"TABLE",number,"PENDING")
@@ -20,9 +23,8 @@ private String type(String value){String v=value==null?"DELIVERY":value.toUpperC
   }else if(number!=null)throw new ApiException(HttpStatus.BAD_REQUEST,"TABLE_INVALID","Mesa somente no atendimento local");
  }
  private String tableLabel(UUID company,String type,Integer number){
-  return "TABLE".equals(type)&&number!=null
-   ?diningTables.findByCompany_IdAndNumberAndActiveTrue(company,number).orElseThrow(()->nf("Mesa")).getName()
-   :null;
+  if(!"TABLE".equals(type))return null;
+  return number==null ? "MESA" : diningTables.findByCompany_IdAndNumberAndActiveTrue(company,number).orElseThrow(()->nf("Mesa")).getName();
  }
  @Transactional(readOnly=true) public List<Integer> tables(){
   var c=ctx(CompanyFeature.TABLES);
