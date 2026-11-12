@@ -5,6 +5,7 @@ import com.gestordevendas.api.common.error.ApiException;
 import com.gestordevendas.api.common.security.CurrentUserService;
 import com.gestordevendas.api.company.Company;
 import com.gestordevendas.api.company.CompanyRepository;
+import com.gestordevendas.api.inventory.InventoryLotService;
 import com.gestordevendas.api.product.Product;
 import com.gestordevendas.api.product.ProductRepository;
 import com.gestordevendas.api.tenant.TenantContext;
@@ -30,11 +31,12 @@ public class StockService {
     private final TenantContextService tenantContextService;
     private final TenantGuard tenantGuard;
     private final AuditService auditService;
+    private final InventoryLotService inventoryLotService;
 
     public StockService(StockMovementRepository movementRepository, ProductRepository productRepository,
                         CompanyRepository companyRepository, UserRepository userRepository,
                         CurrentUserService currentUserService, TenantContextService tenantContextService,
-                        TenantGuard tenantGuard, AuditService auditService) {
+                        TenantGuard tenantGuard, AuditService auditService, InventoryLotService inventoryLotService) {
         this.movementRepository = movementRepository;
         this.productRepository = productRepository;
         this.companyRepository = companyRepository;
@@ -42,6 +44,7 @@ public class StockService {
         this.currentUserService = currentUserService;
         this.tenantContextService = tenantContextService;
         this.tenantGuard = tenantGuard; this.auditService = auditService;
+        this.inventoryLotService = inventoryLotService;
     }
 
     @Transactional
@@ -60,6 +63,8 @@ public class StockService {
             ? StockMovementType.AJUSTE_ENTRADA : StockMovementType.AJUSTE_SAIDA;
         applyDelta(context, product, request.quantityDelta(), type, "AJUSTE", null, request.reason(),
             "INSUFFICIENT_STOCK", "Estoque insuficiente para este ajuste.");
+        Company company = companyRepository.findById(context.companyId()).orElseThrow();
+        inventoryLotService.applyManualAdjustment(company, product, request.quantityDelta());
         auditService.record("STOCK_ADJUSTED", context.companyId(), context.userId(), "PRODUCT", product.getId(), request.reason(),
             java.util.Map.of("quantityDelta", request.quantityDelta(), "currentStock", product.getCurrentStock()));
         return new StockAdjustmentResponse(product.getId(), product.getCurrentStock());

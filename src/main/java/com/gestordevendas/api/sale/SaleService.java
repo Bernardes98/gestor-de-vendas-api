@@ -133,15 +133,36 @@ public class SaleService {
         Client client = requireClient(request.clientId(), context.companyId());
         Company company = companyRepository.findById(context.companyId()).orElseThrow();
         List<SaleItem> oldItems = itemRepository.findAllByCompanyIdAndSaleIdOrderByPositionAsc(context.companyId(), id);
-        inventoryLotService.releaseSale(context.companyId(), id);
-        List<SaleItem> newItems = buildItems(request.items(), context, company, sale, client);
+        Map<UUID, BigDecimal> tracked = inventoryLotService.releaseSale(context.companyId(), id);
+        // Older sales were included in the migration's opening stock snapshot.
+        // Only their stock difference should reach the FIFO ledger on edits.
+        Map<UUID, BigDecimal> legacy = legacyQuantities(oldItems, tracked);
+        Map<UUID, BigDecimal> legacyCosts = oldItems.stream()
+                .filter(SaleItem::isStockMoved)
+                .collect(Collectors.toMap(i -> i.getProduct().getId(), SaleItem::getUnitCost,
+                        (first, ignored) -> first));
+        List<SaleItem> newItems = buildItems(request.items(), context, company, sale, client, legacy, legacyCosts);
         BigDecimal newTotal = newItems.stream().map(SaleItem::getLineTotal).reduce(BigDecimal.ZERO, BigDecimal::add);
         if (request.paymentType() == SalePaymentType.PRAZO && newTotal.compareTo(paid) < 0) {
             throw new ApiException(HttpStatus.CONFLICT, "SALE_TOTAL_BELOW_PAID",
                 "O total da venda não pode ser menor que o valor já recebido.");
         }
         applySaleStockDelta(context, oldItems, newItems, id);
-        for (SaleItem item : newItems.stream().filter(SaleItem::isStockMoved).toList()) inventoryLotService.consume(company, sale, item.getProduct(), item.getQuantity());
+        // Returning untracked pre-migration units creates a new FIFO layer;
+        // units that remain on the sale must not be consumed twice.
+        for (SaleItem previous : oldItems.stream().filter(SaleItem::isStockMoved).toList()) {
+            BigDecimal oldLegacy = legacy.getOrDefault(previous.getProduct().getId(), BigDecimal.ZERO);
+            BigDecimal newQty = newItems.stream()
+                    .filter(item -> item.isStockMoved() && item.getProduct().getId().equals(previous.getProduct().getId()))
+                    .map(SaleItem::getQuantity).reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal returned = oldLegacy.subtract(newQty).max(BigDecimal.ZERO);
+            inventoryLotService.returnFromLegacySale(company, previous.getProduct(), returned, previous.getUnitCost());
+        }
+        for (SaleItem item : newItems.stream().filter(SaleItem::isStockMoved).toList()) {
+            BigDecimal preserved = item.getQuantity().min(legacy.getOrDefault(item.getProduct().getId(), BigDecimal.ZERO));
+            BigDecimal toConsume = item.getQuantity().subtract(preserved);
+            if (toConsume.signum() > 0) inventoryLotService.consume(company, sale, item.getProduct(), toConsume);
+        }
         itemRepository.deleteAllByCompanyIdAndSaleId(context.companyId(), id);
         itemRepository.flush();
         itemRepository.saveAll(newItems);
@@ -167,11 +188,16 @@ public class SaleService {
         tenantGuard.requireOwnerOrAdmin(context);
         Sale sale = requireActive(id, context.companyId());
         List<SaleItem> items = itemRepository.findAllByCompanyIdAndSaleIdOrderByPositionAsc(context.companyId(), id);
-        inventoryLotService.releaseSale(context.companyId(), id);
+        Map<UUID, BigDecimal> tracked = inventoryLotService.releaseSale(context.companyId(), id);
+        Company company = companyRepository.findById(context.companyId()).orElseThrow();
         for (SaleItem item : items.stream().filter(SaleItem::isStockMoved)
             .sorted(Comparator.comparing(i -> i.getProduct().getId())).toList()) {
             stockService.applyDelta(context, item.getProduct(), item.getQuantity(), StockMovementType.VENDA_REVERSAO,
                 "VENDA", id, request.reason(), "STOCK_REVERSAL_NOT_ALLOWED", "Não foi possível devolver o estoque da venda.");
+            BigDecimal untracked = item.getQuantity()
+                    .subtract(tracked.getOrDefault(item.getProduct().getId(), BigDecimal.ZERO))
+                    .max(BigDecimal.ZERO);
+            inventoryLotService.returnFromLegacySale(company, item.getProduct(), untracked, item.getUnitCost());
         }
         User user = userRepository.findById(context.userId()).orElseThrow();
         SaleState state = stateRepository.findById(id)
@@ -262,6 +288,11 @@ public class SaleService {
     }
 
     private List<SaleItem> buildItems(List<SaleItemRequest> requests, TenantContext context, Company company, Sale sale, Client client) {
+        return buildItems(requests, context, company, sale, client, Map.of(), Map.of());
+    }
+
+    private List<SaleItem> buildItems(List<SaleItemRequest> requests, TenantContext context, Company company, Sale sale,
+                                       Client client, Map<UUID, BigDecimal> legacy, Map<UUID, BigDecimal> legacyCosts) {
         return java.util.stream.IntStream.range(0, requests.size()).mapToObj(position -> {
             SaleItemRequest r = requests.get(position);
             Product product = productRepository.findByIdAndCompanyIdAndActiveTrue(r.productId(), context.companyId())
@@ -273,10 +304,28 @@ public class SaleService {
             }
             if (price == null) price = product.getSalePrice();
             BigDecimal lineTotal = money(price.multiply(r.quantity()));
-            BigDecimal fifoCost = product.isStockControlled() ? inventoryLotService.fifoUnitCost(company, product, r.quantity()) : product.getCostPrice();
-            BigDecimal lineCost = money(fifoCost.multiply(r.quantity()));
-            return SaleItem.create(company, sale, product, r.quantity(), money(price), money(fifoCost), lineTotal, lineCost, position);
+            BigDecimal preserved = product.isStockControlled()
+                    ? r.quantity().min(legacy.getOrDefault(product.getId(), BigDecimal.ZERO))
+                    : BigDecimal.ZERO;
+            BigDecimal toConsume = r.quantity().subtract(preserved);
+            BigDecimal oldCost = legacyCosts.getOrDefault(product.getId(), product.getCostPrice());
+            BigDecimal fifoCost = product.isStockControlled() && toConsume.signum() > 0
+                    ? inventoryLotService.fifoUnitCost(company, product, toConsume)
+                    : oldCost;
+            BigDecimal lineCost = money(oldCost.multiply(preserved).add(fifoCost.multiply(toConsume)));
+            BigDecimal effectiveCost = lineCost.divide(r.quantity(), 2, RoundingMode.HALF_UP);
+            return SaleItem.create(company, sale, product, r.quantity(), money(price), effectiveCost, lineTotal, lineCost, position);
         }).toList();
+    }
+
+    private Map<UUID, BigDecimal> legacyQuantities(List<SaleItem> items, Map<UUID, BigDecimal> tracked) {
+        Map<UUID, BigDecimal> legacy = new HashMap<>();
+        for (SaleItem item : items.stream().filter(SaleItem::isStockMoved).toList()) {
+            legacy.merge(item.getProduct().getId(), item.getQuantity(), BigDecimal::add);
+        }
+        legacy.replaceAll((productId, quantity) ->
+                quantity.subtract(tracked.getOrDefault(productId, BigDecimal.ZERO)).max(BigDecimal.ZERO));
+        return legacy;
     }
 
     private void applySaleStockDelta(TenantContext context, List<SaleItem> oldItems, List<SaleItem> newItems, UUID saleId) {

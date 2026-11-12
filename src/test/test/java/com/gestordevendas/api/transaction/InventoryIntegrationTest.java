@@ -59,7 +59,35 @@ class InventoryIntegrationTest extends BusinessIntegrationTestSupport {
 
         mvc.perform(delete("/api/purchases/{id}", purchaseId).header("Authorization", bearer(adminToken)))
             .andExpect(status().isConflict())
-            .andExpect(jsonPath("$.code").value("STOCK_REVERSAL_NOT_ALLOWED"));
+            .andExpect(jsonPath("$.code").value("PURCHASE_LOT_ALREADY_CONSUMED"));
+    }
+
+    @Test
+    void manualStockAdjustmentsKeepFifoBalanced() throws Exception {
+        Product product = createProduct("Ajuste FIFO", new BigDecimal("8.00"), new BigDecimal("12.00"), true);
+        createPurchase(adminToken, product, "10", "8.00");
+
+        mvc.perform(post("/api/stock/adjustments")
+                .header("Authorization", bearer(adminToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"productId\":\"" + product.getId() +
+                    "\",\"quantityDelta\":-3,\"reason\":\"Quebra\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.currentStock").value(7.000));
+        mvc.perform(get("/api/inventory/lots").header("Authorization", bearer(adminToken)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].totalQuantity").value(7.000));
+
+        mvc.perform(post("/api/stock/adjustments")
+                .header("Authorization", bearer(adminToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"productId\":\"" + product.getId() +
+                    "\",\"quantityDelta\":2,\"reason\":\"Contagem\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.currentStock").value(9.000));
+        mvc.perform(get("/api/inventory/lots").header("Authorization", bearer(adminToken)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].totalQuantity").value(9.000));
     }
 
     @Test

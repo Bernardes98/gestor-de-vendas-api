@@ -159,61 +159,82 @@ public class InventoryLotService {
 
  }
 
- public void releaseSale(UUID companyId, UUID saleId) {
-  var saleConsumptions =
-          consumptions.findAllByCompanyIdAndSaleId(
-                  companyId,
-                  saleId
-          );
-
+ /**
+  * Restores the tracked quantities, returning the per-product total restored.
+  * Old pre-FIFO sales can have items without a corresponding consumption row;
+  * callers must not consume those quantities again on an edit.
+  */
+ public Map<UUID, BigDecimal> releaseSale(UUID companyId, UUID saleId) {
+  var saleConsumptions = consumptions.findAllByCompanyIdAndSaleId(companyId, saleId);
   var products = new LinkedHashSet<Product>();
+  var trackedByProduct = new HashMap<UUID, BigDecimal>();
 
   for (var consumption : saleConsumptions) {
-   consumption
-           .getLot()
-           .restore(consumption.getQuantity());
-
-   products.add(
-           consumption.getLot().getProduct()
-   );
+   consumption.getLot().restore(consumption.getQuantity());
+   Product product = consumption.getLot().getProduct();
+   products.add(product);
+   trackedByProduct.merge(product.getId(), consumption.getQuantity(), BigDecimal::add);
   }
 
   consumptions.deleteAll(saleConsumptions);
   consumptions.flush();
-   products.forEach(product -> syncCost(companyId, product));
-
-
+  products.forEach(product -> syncCost(companyId, product));
+  return trackedByProduct;
  }
 
- private void ensureCoverage(
-         Company company,
-         Product product,
-         BigDecimal needed
- ) {
-  BigDecimal available = lots
-          .fifo(company.getId(), product.getId())
-          .stream()
+ /**
+  * A manual adjustment must change the FIFO quantities within the same
+  * transaction as the product balance and its stock movement.
+  */
+ public void applyManualAdjustment(Company company, Product product, BigDecimal delta) {
+  if (delta.signum() > 0) {
+   lots.save(InventoryLot.create(
+           company, product, null, delta, product.getCostPrice(), LocalDate.now()
+   ));
+  } else if (delta.signum() < 0) {
+   BigDecimal remaining = delta.negate();
+   for (var lot : lots.fifo(company.getId(), product.getId())) {
+    BigDecimal take = remaining.min(lot.getRemainingQuantity());
+    if (take.signum() > 0) {
+     lot.consume(take);
+     remaining = remaining.subtract(take);
+    }
+    if (remaining.signum() == 0) break;
+   }
+   if (remaining.signum() > 0) throw insufficientStock(product);
+  }
+  syncCost(company.getId(), product);
+ }
+
+ /**
+  * Quantity returned from a sale that predates FIFO migration: no lot was
+  * consumed originally, so the return requires a new, traceable stock layer.
+  */
+ public void returnFromLegacySale(Company company, Product product, BigDecimal quantity, BigDecimal cost) {
+  if (quantity.signum() <= 0) return;
+  lots.save(InventoryLot.create(
+          company, product, null, quantity, cost, LocalDate.now()
+  ));
+  syncCost(company.getId(), product);
+ }
+
+ private void ensureCoverage(Company company, Product product, BigDecimal needed) {
+  BigDecimal available = lots.fifo(company.getId(), product.getId()).stream()
           .map(InventoryLot::getRemainingQuantity)
           .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-  if (available.compareTo(needed) >= 0) {
-   return;
-  }
-
-  BigDecimal missing =
-          product.getCurrentStock().subtract(available);
-
-  if (missing.signum() > 0) {
-   lots.save(
-           InventoryLot.create(
-                   company,
-                   product,
-                   null,
-                   missing,
-                   product.getCostPrice(),
-                   LocalDate.now().minusDays(1)
-           )
-   );
+  if (available.compareTo(needed) < 0) {
+   // Preserve the normal insufficient-stock error when both the product
+   // balance and the FIFO balance are below the requested quantity.
+   // During a sale edit the previously consumed lots can already have
+   // been restored, so do not reject based on product stock alone.
+   if (product.getCurrentStock().compareTo(needed) < 0) {
+    throw insufficientStock(product);
+   }
+   // The product balance covers the request, but its FIFO lots do not.
+   // Never create a synthetic layer to hide this discrepancy.
+   throw new ApiException(HttpStatus.CONFLICT, "FIFO_STOCK_MISMATCH",
+           "O saldo FIFO do produto " + product.getName()
+                   + " precisa ser conciliado antes desta operação.");
   }
  }
 

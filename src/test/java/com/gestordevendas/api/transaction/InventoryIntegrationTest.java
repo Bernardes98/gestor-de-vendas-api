@@ -59,8 +59,7 @@ class InventoryIntegrationTest extends BusinessIntegrationTestSupport {
 
         mvc.perform(delete("/api/purchases/{id}", purchaseId).header("Authorization", bearer(adminToken)))
             .andExpect(status().isConflict())
-            .andExpect(jsonPath("$.code").value("STOCK_REVERSAL_NOT_ALLOWED"));
-    }
+                .andExpect(jsonPath("$.code").value("PURCHASE_LOT_ALREADY_CONSUMED"));    }
 
     @Test
     void sellerCannotManagePurchasesOrManualStockAndOtherTenantCannotSeePurchase() throws Exception {
