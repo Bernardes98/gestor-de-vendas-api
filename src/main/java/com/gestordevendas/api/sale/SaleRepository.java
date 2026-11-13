@@ -1,5 +1,7 @@
 package com.gestordevendas.api.sale;
 
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -13,6 +15,10 @@ import java.util.UUID;
 public interface SaleRepository extends JpaRepository<Sale, UUID> {
     @EntityGraph(attributePaths = {"company", "client"})
     Optional<Sale> findByIdAndCompanyId(UUID id, UUID companyId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select s from Sale s where s.id = :id and s.company.id = :companyId")
+    Optional<Sale> findForUpdate(@Param("id") UUID id, @Param("companyId") UUID companyId);
 
     @EntityGraph(attributePaths = {"company", "client"})
     List<Sale> findAllByCompanyIdOrderByNumberDesc(UUID companyId);

@@ -7,6 +7,7 @@ import com.gestordevendas.api.purchase.Purchase;
 import com.gestordevendas.api.sale.Sale;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -78,17 +79,20 @@ public class InventoryLotService {
           .forEach(product -> syncCost(companyId, product));
  }
 
+ @Transactional
  public BigDecimal fifoUnitCost(
          Company company,
          Product product,
          BigDecimal quantity
  ) {
-  ensureCoverage(company, product, quantity);
+  requirePositive(quantity);
+  var availableLots = lots.fifo(company.getId(), product.getId());
+  ensureCoverage(product, quantity, availableLots);
 
   BigDecimal remaining = quantity;
   BigDecimal totalCost = BigDecimal.ZERO;
 
-  for (var lot : lots.fifo(company.getId(), product.getId())) {
+  for (var lot : availableLots) {
    BigDecimal take = remaining.min(
            lot.getRemainingQuantity()
    );
@@ -115,48 +119,33 @@ public class InventoryLotService {
   );
  }
 
- public void consume(
-         Company company,
-         Sale sale,
-         Product product,
-         BigDecimal quantity
+ @Transactional
+ public BigDecimal consumeAndGetCost(
+         Company company, Sale sale, Product product, BigDecimal quantity
  ) {
-  ensureCoverage(company, product, quantity);
-
+  requirePositive(quantity);
+  var availableLots = lots.fifo(company.getId(), product.getId());
+  ensureCoverage(product, quantity, availableLots);
   BigDecimal remaining = quantity;
-
-  for (var lot : lots.fifo(company.getId(), product.getId())) {
-   BigDecimal take = remaining.min(
-           lot.getRemainingQuantity()
-   );
-
+  BigDecimal totalCost = BigDecimal.ZERO;
+  for (var lot : availableLots) {
+   BigDecimal take = remaining.min(lot.getRemainingQuantity());
    if (take.signum() > 0) {
+    totalCost = totalCost.add(take.multiply(lot.getUnitCost()));
     lot.consume(take);
-
-    consumptions.save(
-            SaleLotConsumption.create(
-                    company,
-                    sale,
-                    product,
-                    lot,
-                    take
-            )
-    );
-
+    consumptions.save(SaleLotConsumption.create(company, sale, product, lot, take));
     remaining = remaining.subtract(take);
    }
-
-   if (remaining.signum() == 0) {
-    break;
-   }
+   if (remaining.signum() == 0) break;
   }
+  if (remaining.signum() > 0) throw insufficientStock(product);
+  syncCost(company.getId(), product);
+  return totalCost.setScale(2, RoundingMode.HALF_UP);
+ }
 
-  if (remaining.signum() > 0) {
-   throw insufficientStock(product);
-  }
-   syncCost(company.getId(), product);
-
-
+ @Transactional
+ public void consume(Company company, Sale sale, Product product, BigDecimal quantity) {
+  consumeAndGetCost(company, sale, product, quantity);
  }
 
  /**
@@ -164,14 +153,31 @@ public class InventoryLotService {
   * Old pre-FIFO sales can have items without a corresponding consumption row;
   * callers must not consume those quantities again on an edit.
   */
+ @Transactional
  public Map<UUID, BigDecimal> releaseSale(UUID companyId, UUID saleId) {
   var saleConsumptions = consumptions.findAllByCompanyIdAndSaleId(companyId, saleId);
   var products = new LinkedHashSet<Product>();
   var trackedByProduct = new HashMap<UUID, BigDecimal>();
 
+  // Lock every affected product's lots, including fully consumed lots.
+  // FIFO's regular query excludes zero-balance lots, which are precisely
+  // the ones that may need restoration during cancellation.
+  var productIds = saleConsumptions.stream()
+          .map(c -> c.getLot().getProduct().getId()).distinct().sorted().toList();
+  var lockedLots = new HashMap<UUID, InventoryLot>();
+  for (UUID productId : productIds) {
+   for (var lot : lots.allForProductLocked(companyId, productId)) {
+    lockedLots.put(lot.getId(), lot);
+   }
+  }
   for (var consumption : saleConsumptions) {
-   consumption.getLot().restore(consumption.getQuantity());
-   Product product = consumption.getLot().getProduct();
+   var lot = lockedLots.get(consumption.getLot().getId());
+   if (lot == null) {
+    throw new ApiException(HttpStatus.CONFLICT, "FIFO_LOT_MISSING",
+            "Lote de estoque não encontrado para estorno da venda.");
+   }
+   lot.restore(consumption.getQuantity());
+   Product product = lot.getProduct();
    products.add(product);
    trackedByProduct.merge(product.getId(), consumption.getQuantity(), BigDecimal::add);
   }
@@ -186,7 +192,9 @@ public class InventoryLotService {
   * A manual adjustment must change the FIFO quantities within the same
   * transaction as the product balance and its stock movement.
   */
+ @Transactional
  public void applyManualAdjustment(Company company, Product product, BigDecimal delta) {
+  Objects.requireNonNull(delta, "delta");
   if (delta.signum() > 0) {
    lots.save(InventoryLot.create(
            company, product, null, delta, product.getCostPrice(), LocalDate.now()
@@ -210,7 +218,9 @@ public class InventoryLotService {
   * Quantity returned from a sale that predates FIFO migration: no lot was
   * consumed originally, so the return requires a new, traceable stock layer.
   */
+ @Transactional
  public void returnFromLegacySale(Company company, Product product, BigDecimal quantity, BigDecimal cost) {
+  Objects.requireNonNull(quantity, "quantity");
   if (quantity.signum() <= 0) return;
   lots.save(InventoryLot.create(
           company, product, null, quantity, cost, LocalDate.now()
@@ -218,8 +228,15 @@ public class InventoryLotService {
   syncCost(company.getId(), product);
  }
 
- private void ensureCoverage(Company company, Product product, BigDecimal needed) {
-  BigDecimal available = lots.fifo(company.getId(), product.getId()).stream()
+ private void requirePositive(BigDecimal quantity) {
+  if (quantity == null || quantity.signum() <= 0) {
+   throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_FIFO_QUANTITY",
+           "A quantidade para movimentação FIFO deve ser maior que zero.");
+  }
+ }
+
+ private void ensureCoverage(Product product, BigDecimal needed, List<InventoryLot> availableLots) {
+  BigDecimal available = availableLots.stream()
           .map(InventoryLot::getRemainingQuantity)
           .reduce(BigDecimal.ZERO, BigDecimal::add);
   if (available.compareTo(needed) < 0) {

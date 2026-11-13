@@ -34,11 +34,15 @@ public class PurchaseItem {
     @Column(name = "total", nullable = false, precision = 14, scale = 2)
     private BigDecimal total;
 
+    @Column(name = "estoque_movimentado")
+    private Boolean stockMoved;
+
     protected PurchaseItem() {}
 
-    public static PurchaseItem create(Company company, Purchase purchase, Product product, BigDecimal quantity, BigDecimal unitCost) {
+    public static PurchaseItem create(Company company, Purchase purchase, Product product, BigDecimal quantity, BigDecimal unitCost, boolean stockMoved) {
         PurchaseItem item = new PurchaseItem();
         item.id = UUID.randomUUID();
+        item.stockMoved = stockMoved;
         item.company = company;
         item.purchase = purchase;
         item.product = product;
@@ -53,5 +57,11 @@ public class PurchaseItem {
     public BigDecimal getQuantity() { return quantity; }
     public BigDecimal getUnitCost() { return unitCost; }
     public BigDecimal getTotal() { return total; }
-    public boolean isStockMoved() { return product != null && product.isStockControlled(); }
+    public boolean isStockMoved() {
+        if (stockMoved == null) {
+            throw new IllegalStateException("Movimentacao historica de estoque nao classificada para item " + id
+                + ". Audite os registros antigos antes de editar ou cancelar a operacao.");
+        }
+        return stockMoved;
+    }
 }

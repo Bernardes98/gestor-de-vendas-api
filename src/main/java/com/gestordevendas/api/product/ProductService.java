@@ -77,6 +77,14 @@ public class ProductService {
         TenantContext context = currentTenant();
         tenantGuard.requireOwnerOrAdmin(context);
         Product product = requireProduct(id, context.companyId());
+        // Changing stock tracking after creation changes the meaning of historical
+        // sale/purchase items, whose stockMoved status currently depends on Product.
+        // Reject the transition until a dedicated audited migration is implemented.
+        if (product.isStockControlled() != request.stockControlled()) {
+            throw new ApiException(HttpStatus.CONFLICT, "STOCK_CONTROL_CHANGE_REQUIRES_MIGRATION",
+                "Não é possível alterar o controle de estoque deste produto pela edição comum. " +
+                "Utilize uma operação de migração de estoque auditada.");
+        }
         apply(product, request, context.companyId());
         return response(product, context);
     }

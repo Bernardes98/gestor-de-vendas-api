@@ -103,13 +103,17 @@ public class SaleService {
         SaleState state = stateRepository.save(SaleState.create(sale, request.paymentType(), user));
         sale.applyRuntimeState(state.getStatus(), state.getPaymentType(), state.getCancelReason());
 
-        List<SaleItem> items = buildItems(request.items(), context, company, sale, client);
+        List<SaleItem> items = buildItems(request.items(), context, company, sale, client, Map.of(), Map.of(), true);
         for (SaleItem item : items.stream().filter(SaleItem::isStockMoved)
             .sorted(Comparator.comparing(i -> i.getProduct().getId())).toList()) {
             stockService.applyDelta(context, item.getProduct(), item.getQuantity().negate(), StockMovementType.VENDA,
                 "VENDA", sale.getId(), null, "INSUFFICIENT_STOCK", "Estoque insuficiente para este produto.");
         }
-        for (SaleItem item : items.stream().filter(SaleItem::isStockMoved).toList()) inventoryLotService.consume(company, sale, item.getProduct(), item.getQuantity());
+        for (SaleItem item : items.stream().filter(SaleItem::isStockMoved)
+            .sorted(Comparator.comparing(i -> i.getProduct().getId())).toList()) {
+            BigDecimal actualCost = inventoryLotService.consumeAndGetCost(company, sale, item.getProduct(), item.getQuantity());
+            item.applyActualFifoCost(actualCost);
+        }
         itemRepository.saveAll(items);
         applyTotals(sale, items, request.paymentType());
         sale.setPaymentDetails(request.paymentType() == SalePaymentType.PRAZO ? null : request.paymentMethod(), request.cashReceived());
@@ -123,7 +127,7 @@ public class SaleService {
         TenantContext context = currentTenant();
         tenantGuard.requireOwnerOrAdmin(context);
         validateUniqueProducts(request.items());
-        Sale sale = requireActive(id, context.companyId());
+        Sale sale = requireActiveLocked(id, context.companyId());
         BigDecimal paid = paid(context.companyId(), id);
         SalePaymentType currentType = resolvedPaymentType(sale);
         if (currentType == SalePaymentType.PRAZO && request.paymentType() == SalePaymentType.AVISTA && paid.signum() > 0) {
@@ -133,35 +137,50 @@ public class SaleService {
         Client client = requireClient(request.clientId(), context.companyId());
         Company company = companyRepository.findById(context.companyId()).orElseThrow();
         List<SaleItem> oldItems = itemRepository.findAllByCompanyIdAndSaleIdOrderByPositionAsc(context.companyId(), id);
-        Map<UUID, BigDecimal> tracked = inventoryLotService.releaseSale(context.companyId(), id);
-        // Older sales were included in the migration's opening stock snapshot.
-        // Only their stock difference should reach the FIFO ledger on edits.
-        Map<UUID, BigDecimal> legacy = legacyQuantities(oldItems, tracked);
-        Map<UUID, BigDecimal> legacyCosts = oldItems.stream()
-                .filter(SaleItem::isStockMoved)
-                .collect(Collectors.toMap(i -> i.getProduct().getId(), SaleItem::getUnitCost,
-                        (first, ignored) -> first));
-        List<SaleItem> newItems = buildItems(request.items(), context, company, sale, client, legacy, legacyCosts);
-        BigDecimal newTotal = newItems.stream().map(SaleItem::getLineTotal).reduce(BigDecimal.ZERO, BigDecimal::add);
-        if (request.paymentType() == SalePaymentType.PRAZO && newTotal.compareTo(paid) < 0) {
-            throw new ApiException(HttpStatus.CONFLICT, "SALE_TOTAL_BELOW_PAID",
-                "O total da venda não pode ser menor que o valor já recebido.");
-        }
-        applySaleStockDelta(context, oldItems, newItems, id);
-        // Returning untracked pre-migration units creates a new FIFO layer;
-        // units that remain on the sale must not be consumed twice.
-        for (SaleItem previous : oldItems.stream().filter(SaleItem::isStockMoved).toList()) {
-            BigDecimal oldLegacy = legacy.getOrDefault(previous.getProduct().getId(), BigDecimal.ZERO);
-            BigDecimal newQty = newItems.stream()
-                    .filter(item -> item.isStockMoved() && item.getProduct().getId().equals(previous.getProduct().getId()))
-                    .map(SaleItem::getQuantity).reduce(BigDecimal.ZERO, BigDecimal::add);
-            BigDecimal returned = oldLegacy.subtract(newQty).max(BigDecimal.ZERO);
-            inventoryLotService.returnFromLegacySale(company, previous.getProduct(), returned, previous.getUnitCost());
-        }
-        for (SaleItem item : newItems.stream().filter(SaleItem::isStockMoved).toList()) {
-            BigDecimal preserved = item.getQuantity().min(legacy.getOrDefault(item.getProduct().getId(), BigDecimal.ZERO));
-            BigDecimal toConsume = item.getQuantity().subtract(preserved);
-            if (toConsume.signum() > 0) inventoryLotService.consume(company, sale, item.getProduct(), toConsume);
+        // Commercial-only edits must not release/reconsume FIFO or reprice historical cost.
+        // Historical NULL stock flags are deliberately rejected until audited.
+        oldItems.forEach(SaleItem::isStockMoved);
+        boolean sameStock = sameStockItems(oldItems, request.items());
+        List<SaleItem> newItems;
+        BigDecimal newTotal;
+        if (sameStock) {
+            newItems = buildCommercialOnlyItems(request.items(), context, company, sale, client, oldItems);
+            newTotal = newItems.stream().map(SaleItem::getLineTotal).reduce(BigDecimal.ZERO, BigDecimal::add);
+            if (request.paymentType() == SalePaymentType.PRAZO && newTotal.compareTo(paid) < 0) {
+                throw new ApiException(HttpStatus.CONFLICT, "SALE_TOTAL_BELOW_PAID",
+                    "O total da venda não pode ser menor que o valor já recebido.");
+            }
+        } else {
+            Map<UUID, BigDecimal> tracked = inventoryLotService.releaseSale(context.companyId(), id);
+            // Older sales were included in the migration's opening stock snapshot.
+            // Only their stock difference should reach the FIFO ledger on edits.
+            Map<UUID, BigDecimal> legacy = legacyQuantities(oldItems, tracked);
+            Map<UUID, BigDecimal> legacyCosts = oldItems.stream()
+                    .filter(SaleItem::isStockMoved)
+                    .collect(Collectors.toMap(i -> i.getProduct().getId(), SaleItem::getUnitCost,
+                            (first, ignored) -> first));
+            newItems = buildItems(request.items(), context, company, sale, client, legacy, legacyCosts);
+            newTotal = newItems.stream().map(SaleItem::getLineTotal).reduce(BigDecimal.ZERO, BigDecimal::add);
+            if (request.paymentType() == SalePaymentType.PRAZO && newTotal.compareTo(paid) < 0) {
+                throw new ApiException(HttpStatus.CONFLICT, "SALE_TOTAL_BELOW_PAID",
+                    "O total da venda não pode ser menor que o valor já recebido.");
+            }
+            applySaleStockDelta(context, oldItems, newItems, id);
+            // Returning untracked pre-migration units creates a new FIFO layer;
+            // units that remain on the sale must not be consumed twice.
+            for (SaleItem previous : oldItems.stream().filter(SaleItem::isStockMoved).toList()) {
+                BigDecimal oldLegacy = legacy.getOrDefault(previous.getProduct().getId(), BigDecimal.ZERO);
+                BigDecimal newQty = newItems.stream()
+                        .filter(item -> item.isStockMoved() && item.getProduct().getId().equals(previous.getProduct().getId()))
+                        .map(SaleItem::getQuantity).reduce(BigDecimal.ZERO, BigDecimal::add);
+                BigDecimal returned = oldLegacy.subtract(newQty).max(BigDecimal.ZERO);
+                inventoryLotService.returnFromLegacySale(company, previous.getProduct(), returned, previous.getUnitCost());
+            }
+            for (SaleItem item : newItems.stream().filter(SaleItem::isStockMoved).toList()) {
+                BigDecimal preserved = item.getQuantity().min(legacy.getOrDefault(item.getProduct().getId(), BigDecimal.ZERO));
+                BigDecimal toConsume = item.getQuantity().subtract(preserved);
+                if (toConsume.signum() > 0) inventoryLotService.consume(company, sale, item.getProduct(), toConsume);
+            }
         }
         itemRepository.deleteAllByCompanyIdAndSaleId(context.companyId(), id);
         itemRepository.flush();
@@ -186,7 +205,7 @@ public class SaleService {
     public SaleResponse cancel(UUID id, SaleCancelRequest request) {
         TenantContext context = currentTenant();
         tenantGuard.requireOwnerOrAdmin(context);
-        Sale sale = requireActive(id, context.companyId());
+        Sale sale = requireActiveLocked(id, context.companyId());
         List<SaleItem> items = itemRepository.findAllByCompanyIdAndSaleIdOrderByPositionAsc(context.companyId(), id);
         Map<UUID, BigDecimal> tracked = inventoryLotService.releaseSale(context.companyId(), id);
         Company company = companyRepository.findById(context.companyId()).orElseThrow();
@@ -214,7 +233,7 @@ public class SaleService {
     public SaleResponse addPayment(UUID id, PaymentRequest request) {
         TenantContext context = currentTenant();
         tenantGuard.requireOwnerOrAdmin(context);
-        Sale sale = requireActive(id, context.companyId());
+        Sale sale = requireActiveLocked(id, context.companyId());
         if (resolvedPaymentType(sale) != SalePaymentType.PRAZO) {
             throw new ApiException(HttpStatus.CONFLICT, "SALE_NOT_CREDIT", "Venda não está a prazo.");
         }
@@ -235,7 +254,7 @@ public class SaleService {
     public SaleResponse settle(UUID id) {
         TenantContext context = currentTenant();
         tenantGuard.requireOwnerOrAdmin(context);
-        Sale sale = requireActive(id, context.companyId());
+        Sale sale = requireActiveLocked(id, context.companyId());
         if (resolvedPaymentType(sale) != SalePaymentType.PRAZO) {
             throw new ApiException(HttpStatus.CONFLICT, "SALE_NOT_CREDIT", "Venda não está a prazo.");
         }
@@ -253,6 +272,15 @@ public class SaleService {
     public Sale require(UUID id, UUID companyId) {
         return repository.findByIdAndCompanyId(id, companyId)
             .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "SALE_NOT_FOUND", "Venda não encontrada."));
+    }
+
+    private Sale requireActiveLocked(UUID id, UUID companyId) {
+        Sale sale = repository.findForUpdate(id, companyId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "SALE_NOT_FOUND", "Venda não encontrada."));
+        if (resolvedStatus(sale) == SaleStatus.CANCELADA) {
+            throw new ApiException(HttpStatus.CONFLICT, "SALE_CANCELLED", "Venda cancelada.");
+        }
+        return sale;
     }
 
     public Sale requireActive(UUID id, UUID companyId) {
@@ -293,6 +321,12 @@ public class SaleService {
 
     private List<SaleItem> buildItems(List<SaleItemRequest> requests, TenantContext context, Company company, Sale sale,
                                        Client client, Map<UUID, BigDecimal> legacy, Map<UUID, BigDecimal> legacyCosts) {
+        return buildItems(requests, context, company, sale, client, legacy, legacyCosts, false);
+    }
+
+    private List<SaleItem> buildItems(List<SaleItemRequest> requests, TenantContext context, Company company, Sale sale,
+                                      Client client, Map<UUID, BigDecimal> legacy, Map<UUID, BigDecimal> legacyCosts,
+                                      boolean deferFifoCost) {
         return java.util.stream.IntStream.range(0, requests.size()).mapToObj(position -> {
             SaleItemRequest r = requests.get(position);
             Product product = productRepository.findByIdAndCompanyIdAndActiveTrue(r.productId(), context.companyId())
@@ -309,12 +343,39 @@ public class SaleService {
                     : BigDecimal.ZERO;
             BigDecimal toConsume = r.quantity().subtract(preserved);
             BigDecimal oldCost = legacyCosts.getOrDefault(product.getId(), product.getCostPrice());
-            BigDecimal fifoCost = product.isStockControlled() && toConsume.signum() > 0
+            BigDecimal fifoCost = product.isStockControlled() && toConsume.signum() > 0 && !deferFifoCost
                     ? inventoryLotService.fifoUnitCost(company, product, toConsume)
                     : oldCost;
             BigDecimal lineCost = money(oldCost.multiply(preserved).add(fifoCost.multiply(toConsume)));
             BigDecimal effectiveCost = lineCost.divide(r.quantity(), 2, RoundingMode.HALF_UP);
-            return SaleItem.create(company, sale, product, r.quantity(), money(price), effectiveCost, lineTotal, lineCost, position);
+            return SaleItem.create(company, sale, product, r.quantity(), money(price), effectiveCost, lineTotal, lineCost, position, product.isStockControlled());
+        }).toList();
+    }
+
+    private boolean sameStockItems(List<SaleItem> oldItems, List<SaleItemRequest> requested) {
+        if (oldItems.size() != requested.size()) return false;
+        Map<UUID, BigDecimal> previous = oldItems.stream().collect(Collectors.toMap(
+            i -> i.getProduct().getId(), SaleItem::getQuantity));
+        return requested.stream().allMatch(r -> previous.containsKey(r.productId())
+            && previous.get(r.productId()).compareTo(r.quantity()) == 0);
+    }
+
+    private List<SaleItem> buildCommercialOnlyItems(List<SaleItemRequest> requests, TenantContext context,
+                                                     Company company, Sale sale, Client client, List<SaleItem> oldItems) {
+        Map<UUID, SaleItem> previous = oldItems.stream().collect(Collectors.toMap(
+            i -> i.getProduct().getId(), i -> i));
+        return java.util.stream.IntStream.range(0, requests.size()).mapToObj(position -> {
+            SaleItemRequest r = requests.get(position);
+            SaleItem old = previous.get(r.productId());
+            Product product = old.getProduct();
+            BigDecimal price = r.unitPrice();
+            if (price == null && client != null) {
+                price = priceRepository.findByCompanyIdAndClientIdAndProductId(context.companyId(), client.getId(), product.getId())
+                    .map(v -> v.getPrice()).orElse(null);
+            }
+            if (price == null) price = product.getSalePrice();
+            return SaleItem.create(company, sale, product, old.getQuantity(), money(price), old.getUnitCost(),
+                money(price.multiply(old.getQuantity())), old.getLineCost(), position, old.isStockMoved());
         }).toList();
     }
 

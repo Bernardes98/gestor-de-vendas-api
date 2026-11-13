@@ -49,13 +49,17 @@ public class SaleItem {
     @Column(name = "lucro", nullable = false, precision = 14, scale = 2)
     private BigDecimal lineProfit;
 
+    @Column(name = "estoque_movimentado")
+    private Boolean stockMoved;
+
     protected SaleItem() {}
 
     public static SaleItem create(Company company, Sale sale, Product product, BigDecimal quantity,
-                                  BigDecimal unitPrice, BigDecimal unitCost, BigDecimal lineTotal, BigDecimal lineCost, int position) {
+                                  BigDecimal unitPrice, BigDecimal unitCost, BigDecimal lineTotal, BigDecimal lineCost, int position, boolean stockMoved) {
         SaleItem item = new SaleItem();
         item.id = UUID.randomUUID();
         item.position = position;
+        item.stockMoved = stockMoved;
         item.company = company;
         item.sale = sale;
         item.product = product;
@@ -69,6 +73,12 @@ public class SaleItem {
         return item;
     }
 
+    public void applyActualFifoCost(BigDecimal actualLineCost) {
+        this.lineCost = actualLineCost.setScale(2, java.math.RoundingMode.HALF_UP);
+        this.unitCost = this.lineCost.divide(quantity, 2, java.math.RoundingMode.HALF_UP);
+        this.lineProfit = lineTotal.subtract(this.lineCost);
+    }
+
     public int getPosition() { return position; }
     public UUID getId() { return id; }
     public Product getProduct() { return product; }
@@ -79,5 +89,11 @@ public class SaleItem {
     public BigDecimal getLineTotal() { return lineTotal; }
     public BigDecimal getLineCost() { return lineCost; }
     public BigDecimal getLineProfit() { return lineProfit; }
-    public boolean isStockMoved() { return product != null && product.isStockControlled(); }
+    public boolean isStockMoved() {
+        if (stockMoved == null) {
+            throw new IllegalStateException("Movimentacao historica de estoque nao classificada para item " + id
+                + ". Audite os registros antigos antes de editar ou cancelar a operacao.");
+        }
+        return stockMoved;
+    }
 }

@@ -110,8 +110,16 @@ public class PurchaseService {
         TenantContext context = adminContext();
         validateUniqueProducts(request.items());
         Purchase purchase = requireActive(id, context.companyId());
-        inventoryLotService.assertPurchaseUntouched(context.companyId(), id);
         List<PurchaseItem> oldItems = itemRepository.findAllByCompanyIdAndPurchaseId(context.companyId(), id);
+        // Fail closed for historical items whose stock movement cannot be established.
+        oldItems.forEach(PurchaseItem::isStockMoved);
+        // Notes/date-only edits do not modify inventory, lot chronology, or historical costs.
+        if (samePurchaseItems(oldItems, request.items())) {
+            purchase.update(toDate(request.purchasedAt()), request.notes());
+            auditService.record("PURCHASE_UPDATED", context.companyId(), context.userId(), "PURCHASE", purchase.getId(), null, Map.of());
+            return response(purchase, oldItems);
+        }
+        inventoryLotService.assertPurchaseUntouched(context.companyId(), id);
         Map<UUID, BigDecimal> oldQty = stockQuantities(oldItems);
         Company company = companyRepository.findById(context.companyId()).orElseThrow();
         List<PurchaseItem> newItems = buildItems(request.items(), context, company, purchase, true);
@@ -145,8 +153,10 @@ public class PurchaseService {
     public void cancel(UUID id) {
         TenantContext context = adminContext();
         Purchase purchase = requireActive(id, context.companyId());
-        inventoryLotService.assertPurchaseUntouched(context.companyId(), id);
         List<PurchaseItem> items = itemRepository.findAllByCompanyIdAndPurchaseId(context.companyId(), id);
+        // Never reverse an unclassified historical stock movement.
+        items.forEach(PurchaseItem::isStockMoved);
+        inventoryLotService.assertPurchaseUntouched(context.companyId(), id);
         for (PurchaseItem item : items.stream().filter(PurchaseItem::isStockMoved).sorted(Comparator.comparing(i -> i.getProduct().getId())).toList()) {
             stockService.applyDelta(context, item.getProduct(), item.getQuantity().negate(), StockMovementType.COMPRA_REVERSAO,
                 "COMPRA", id, "Cancelamento de compra", "STOCK_REVERSAL_NOT_ALLOWED",
@@ -168,8 +178,19 @@ public class PurchaseService {
                 : productRepository.findByIdAndCompanyId(r.productId(), context.companyId()).orElseThrow(this::productNotFound);
             // O custo atual segue o lote FIFO com saldo, não a última compra.
             product.enableStockControl();
-            return PurchaseItem.create(company, purchase, product, r.quantity(), r.unitCost());
+            return PurchaseItem.create(company, purchase, product, r.quantity(), r.unitCost(), product.isStockControlled());
         }).toList();
+    }
+
+    private boolean samePurchaseItems(List<PurchaseItem> oldItems, List<PurchaseItemRequest> requests) {
+        if (oldItems.size() != requests.size()) return false;
+        Map<UUID, PurchaseItem> previous = oldItems.stream().collect(Collectors.toMap(
+            i -> i.getProduct().getId(), i -> i));
+        return requests.stream().allMatch(r -> {
+            PurchaseItem old = previous.get(r.productId());
+            return old != null && old.getQuantity().compareTo(r.quantity()) == 0
+                && old.getUnitCost().compareTo(r.unitCost()) == 0;
+        });
     }
 
     private Map<UUID, BigDecimal> stockQuantities(List<PurchaseItem> items) {
