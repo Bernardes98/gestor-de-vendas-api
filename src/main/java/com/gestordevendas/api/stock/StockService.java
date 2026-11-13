@@ -61,10 +61,10 @@ public class StockService {
         }
         StockMovementType type = request.quantityDelta().signum() > 0
             ? StockMovementType.AJUSTE_ENTRADA : StockMovementType.AJUSTE_SAIDA;
-        applyDelta(context, product, request.quantityDelta(), type, "AJUSTE", null, request.reason(),
+        StockMovement movement = applyDeltaWithMovement(context, product, request.quantityDelta(), type, "AJUSTE", null, request.reason(),
             "INSUFFICIENT_STOCK", "Estoque insuficiente para este ajuste.");
         Company company = companyRepository.findById(context.companyId()).orElseThrow();
-        inventoryLotService.applyManualAdjustment(company, product, request.quantityDelta());
+        inventoryLotService.applyManualAdjustment(company, product, request.quantityDelta(), movement, request.reason());
         auditService.record("STOCK_ADJUSTED", context.companyId(), context.userId(), "PRODUCT", product.getId(), request.reason(),
             java.util.Map.of("quantityDelta", request.quantityDelta(), "currentStock", product.getCurrentStock()));
         return new StockAdjustmentResponse(product.getId(), product.getCurrentStock());
@@ -84,8 +84,15 @@ public class StockService {
     public void applyDelta(TenantContext context, Product product, BigDecimal delta, StockMovementType type,
                            String referenceType, UUID referenceId, String reason,
                            String negativeCode, String negativeMessage) {
+        applyDeltaWithMovement(context, product, delta, type, referenceType, referenceId,
+            reason, negativeCode, negativeMessage);
+    }
+
+    private StockMovement applyDeltaWithMovement(TenantContext context, Product product, BigDecimal delta,
+                                                 StockMovementType type, String referenceType, UUID referenceId,
+                                                 String reason, String negativeCode, String negativeMessage) {
         boolean historicalReversal = type == StockMovementType.COMPRA_REVERSAO || type == StockMovementType.VENDA_REVERSAO;
-        if ((!product.isStockControlled() && !historicalReversal) || delta.signum() == 0) return;
+        if ((!product.isStockControlled() && !historicalReversal) || delta.signum() == 0) return null;
         Product locked = productRepository.findForStockUpdate(product.getId(), context.companyId())
             .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PRODUCT_NOT_FOUND", "Produto não encontrado."));
         try {
@@ -95,7 +102,7 @@ public class StockService {
         }
         Company company = companyRepository.findById(context.companyId()).orElseThrow();
         User user = userRepository.findById(context.userId()).orElseThrow();
-        movementRepository.save(StockMovement.create(company, locked, type, delta, locked.getCurrentStock(),
+        return movementRepository.save(StockMovement.create(company, locked, type, delta, locked.getCurrentStock(),
             referenceType, referenceId, reason, user));
     }
 

@@ -5,6 +5,7 @@ import com.gestordevendas.api.company.Company;
 import com.gestordevendas.api.product.Product;
 import com.gestordevendas.api.purchase.Purchase;
 import com.gestordevendas.api.sale.Sale;
+import com.gestordevendas.api.stock.StockMovement;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,13 +20,16 @@ public class InventoryLotService {
 
  private final InventoryLotRepository lots;
  private final SaleLotConsumptionRepository consumptions;
+ private final InventoryLotAdjustmentRepository adjustments;
 
  public InventoryLotService(
          InventoryLotRepository lots,
-         SaleLotConsumptionRepository consumptions
+         SaleLotConsumptionRepository consumptions,
+         InventoryLotAdjustmentRepository adjustments
  ) {
   this.lots = lots;
   this.consumptions = consumptions;
+  this.adjustments = adjustments;
  }
 
  public void addPurchase(
@@ -193,18 +197,22 @@ public class InventoryLotService {
   * transaction as the product balance and its stock movement.
   */
  @Transactional
- public void applyManualAdjustment(Company company, Product product, BigDecimal delta) {
+ public void applyManualAdjustment(Company company, Product product, BigDecimal delta,
+                                   StockMovement movement, String reason) {
   Objects.requireNonNull(delta, "delta");
+  Objects.requireNonNull(movement, "movement");
+  if (delta.signum() == 0) throw new IllegalArgumentException("Ajuste de estoque não pode ser zero.");
   if (delta.signum() > 0) {
-   lots.save(InventoryLot.create(
-           company, product, null, delta, product.getCostPrice(), LocalDate.now()
-   ));
-  } else if (delta.signum() < 0) {
+   InventoryLot lot = lots.save(InventoryLot.create(
+           company, product, null, delta, product.getCostPrice(), LocalDate.now()));
+   adjustments.save(InventoryLotAdjustment.manual(company, product, lot, movement, delta, reason));
+  } else {
    BigDecimal remaining = delta.negate();
    for (var lot : lots.fifo(company.getId(), product.getId())) {
     BigDecimal take = remaining.min(lot.getRemainingQuantity());
     if (take.signum() > 0) {
      lot.consume(take);
+     adjustments.save(InventoryLotAdjustment.manual(company, product, lot, movement, take.negate(), reason));
      remaining = remaining.subtract(take);
     }
     if (remaining.signum() == 0) break;
