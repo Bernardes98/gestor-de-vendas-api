@@ -90,6 +90,9 @@ public class PurchaseService {
     public PurchaseResponse create(PurchaseRequest request) {
         TenantContext context = adminContext();
         validateUniqueProducts(request.items());
+        // Always lock products before creating FIFO lots or recalculating their costs.
+        inventoryLotService.lockProducts(context.companyId(),
+            request.items().stream().map(PurchaseItemRequest::productId).toList());
         Company company = companyRepository.findById(context.companyId()).orElseThrow();
         Purchase purchase = repository.save(Purchase.create(company, toDate(request.purchasedAt()), request.notes()));
         stateRepository.save(PurchaseState.create(purchase));
@@ -119,6 +122,11 @@ public class PurchaseService {
             auditService.record("PURCHASE_UPDATED", context.companyId(), context.userId(), "PURCHASE", purchase.getId(), null, Map.of());
             return response(purchase, oldItems);
         }
+        // Lock both the old and new products before checking or replacing purchase lots.
+        Set<UUID> affectedProducts = new HashSet<>();
+        oldItems.forEach(item -> affectedProducts.add(item.getProduct().getId()));
+        request.items().forEach(item -> affectedProducts.add(item.productId()));
+        inventoryLotService.lockProducts(context.companyId(), affectedProducts);
         inventoryLotService.assertPurchaseUntouched(context.companyId(), id);
         Map<UUID, BigDecimal> oldQty = stockQuantities(oldItems);
         Company company = companyRepository.findById(context.companyId()).orElseThrow();
@@ -156,6 +164,8 @@ public class PurchaseService {
         List<PurchaseItem> items = itemRepository.findAllByCompanyIdAndPurchaseId(context.companyId(), id);
         // Never reverse an unclassified historical stock movement.
         items.forEach(PurchaseItem::isStockMoved);
+        inventoryLotService.lockProducts(context.companyId(),
+            items.stream().map(item -> item.getProduct().getId()).toList());
         inventoryLotService.assertPurchaseUntouched(context.companyId(), id);
         for (PurchaseItem item : items.stream().filter(PurchaseItem::isStockMoved).sorted(Comparator.comparing(i -> i.getProduct().getId())).toList()) {
             stockService.applyDelta(context, item.getProduct(), item.getQuantity().negate(), StockMovementType.COMPRA_REVERSAO,
@@ -209,7 +219,8 @@ public class PurchaseService {
     }
 
     private Purchase requireActive(UUID id, UUID companyId) {
-        Purchase p = require(id, companyId);
+        Purchase p = repository.findForUpdate(id, companyId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PURCHASE_NOT_FOUND", "Compra não encontrada."));
         PurchaseStatus status = stateRepository.findById(id).map(PurchaseState::getStatus).orElse(PurchaseStatus.ATIVA);
         if (status == PurchaseStatus.CANCELADA) {
             throw new ApiException(HttpStatus.CONFLICT, "PURCHASE_CANCELLED", "Compra já cancelada.");

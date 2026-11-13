@@ -59,4 +59,17 @@ public interface InventoryLotRepository extends JpaRepository<InventoryLot, UUID
          UUID companyId,
          UUID purchaseId
  );
+
+ @Lock(LockModeType.PESSIMISTIC_WRITE)
+ @Query("""
+    select l
+    from InventoryLot l
+    where l.company.id = :companyId
+      and l.purchase.id = :purchaseId
+    order by l.entryDate asc, l.createdAt asc, l.id asc
+    """)
+ List<InventoryLot> findPurchaseLotsLocked(
+         @Param("companyId") UUID companyId,
+         @Param("purchaseId") UUID purchaseId
+ );
 }

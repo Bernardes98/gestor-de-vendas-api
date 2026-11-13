@@ -19,7 +19,9 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
 /** Regression tests using independent HTTP request transactions on concurrent threads. */
 class FifoConcurrencyIntegrationTest extends BusinessIntegrationTestSupport {
@@ -32,6 +34,21 @@ class FifoConcurrencyIntegrationTest extends BusinessIntegrationTestSupport {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"paymentType\":\"AVISTA\",\"items\":[{\"productId\":\"" +
                     product.getId() + "\",\"quantity\":" + quantity + ",\"unitPrice\":20}]}"))
+            .andReturn().getResponse().getStatus();
+    }
+
+    private int updatePurchase(String purchaseId, Product product, String quantity) throws Exception {
+        return mvc.perform(put("/api/purchases/{id}", purchaseId)
+                .header("Authorization", bearer(adminToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"items\":[{\"productId\":\"" + product.getId() +
+                    "\",\"quantity\":" + quantity + ",\"unitCost\":5.00}]}"))
+            .andReturn().getResponse().getStatus();
+    }
+
+    private int cancelPurchase(String purchaseId) throws Exception {
+        return mvc.perform(delete("/api/purchases/{id}", purchaseId)
+                .header("Authorization", bearer(adminToken)))
             .andReturn().getResponse().getStatus();
     }
 
@@ -102,5 +119,62 @@ class FifoConcurrencyIntegrationTest extends BusinessIntegrationTestSupport {
         assertEquals(List.of(201, 201), statuses, "Vendas de produtos distintos devem funcionar: " + statuses);
         assertBalance(first, "2");
         assertBalance(second, "1");
+    }
+
+    @Test
+    void concurrentSaleAndPurchaseCancellationKeepFifoConsistent() throws Exception {
+        Product product = createProduct("FIFO venda cancelamento " + UUID.randomUUID(),
+            new BigDecimal("5"), new BigDecimal("20"), true);
+        String purchaseId = createPurchase(adminToken, product, "5", "5.00");
+
+        List<Integer> statuses = runTogether(List.of(
+            () -> submitSale(product, "3"),
+            () -> cancelPurchase(purchaseId)
+        ));
+
+        int sale = statuses.get(0);
+        int cancellation = statuses.get(1);
+        assertTrue((sale == 201 && cancellation == 409) ||
+                   (sale == 409 && cancellation == 204),
+            "Venda e cancelamento nao podem confirmar juntos: " + statuses);
+        assertBalance(product, sale == 201 ? "2" : "0");
+    }
+
+    @Test
+    void concurrentSaleAndPurchaseEditKeepFifoConsistent() throws Exception {
+        Product product = createProduct("FIFO venda edicao " + UUID.randomUUID(),
+            new BigDecimal("5"), new BigDecimal("20"), true);
+        String purchaseId = createPurchase(adminToken, product, "5", "5.00");
+
+        List<Integer> statuses = runTogether(List.of(
+            () -> submitSale(product, "4"),
+            () -> updatePurchase(purchaseId, product, "3")
+        ));
+
+        int sale = statuses.get(0);
+        int edit = statuses.get(1);
+        assertTrue((sale == 201 && edit == 409) ||
+                   (sale == 409 && edit == 200),
+            "Venda e reducao da compra nao podem confirmar juntas: " + statuses);
+        assertBalance(product, sale == 201 ? "1" : "3");
+    }
+
+    @Test
+    void concurrentEditAndCancellationOfSamePurchaseKeepFifoConsistent() throws Exception {
+        Product product = createProduct("FIFO edicao cancelamento " + UUID.randomUUID(),
+            new BigDecimal("5"), new BigDecimal("20"), true);
+        String purchaseId = createPurchase(adminToken, product, "5", "5.00");
+
+        List<Integer> statuses = runTogether(List.of(
+            () -> updatePurchase(purchaseId, product, "7"),
+            () -> cancelPurchase(purchaseId)
+        ));
+
+        int edit = statuses.get(0);
+        int cancellation = statuses.get(1);
+        assertTrue((edit == 200 && cancellation == 204) ||
+                   (edit == 409 && cancellation == 204),
+            "Cancelamento deve vencer ou suceder a edicao sem ressuscitar a compra: " + statuses);
+        assertBalance(product, "0");
     }
 }
