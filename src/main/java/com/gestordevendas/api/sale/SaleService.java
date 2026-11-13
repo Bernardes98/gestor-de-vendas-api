@@ -95,6 +95,9 @@ public class SaleService {
     public SaleResponse create(SaleRequest request) {
         TenantContext context = currentTenant();
         validateUniqueProducts(request.items());
+        // Lock all affected products before any stock or FIFO operation.
+        inventoryLotService.lockProducts(context.companyId(),
+            request.items().stream().map(SaleItemRequest::productId).toList());
         Company company = companyRepository.findById(context.companyId()).orElseThrow();
         User user = userRepository.findById(context.userId()).orElseThrow();
         Client client = requireClient(request.clientId(), context.companyId());
@@ -151,6 +154,12 @@ public class SaleService {
                     "O total da venda não pode ser menor que o valor já recebido.");
             }
         } else {
+            // Include removed, retained and newly added products before restoring lots.
+            Set<UUID> affectedProducts = new HashSet<>();
+            oldItems.stream().filter(SaleItem::isStockMoved)
+                .forEach(item -> affectedProducts.add(item.getProduct().getId()));
+            request.items().forEach(item -> affectedProducts.add(item.productId()));
+            inventoryLotService.lockProducts(context.companyId(), affectedProducts);
             Map<UUID, BigDecimal> tracked = inventoryLotService.releaseSale(context.companyId(), id);
             // Older sales were included in the migration's opening stock snapshot.
             // Only their stock difference should reach the FIFO ledger on edits.
@@ -207,6 +216,9 @@ public class SaleService {
         tenantGuard.requireOwnerOrAdmin(context);
         Sale sale = requireActiveLocked(id, context.companyId());
         List<SaleItem> items = itemRepository.findAllByCompanyIdAndSaleIdOrderByPositionAsc(context.companyId(), id);
+        inventoryLotService.lockProducts(context.companyId(),
+            items.stream().filter(SaleItem::isStockMoved)
+                .map(item -> item.getProduct().getId()).toList());
         Map<UUID, BigDecimal> tracked = inventoryLotService.releaseSale(context.companyId(), id);
         Company company = companyRepository.findById(context.companyId()).orElseThrow();
         for (SaleItem item : items.stream().filter(SaleItem::isStockMoved)

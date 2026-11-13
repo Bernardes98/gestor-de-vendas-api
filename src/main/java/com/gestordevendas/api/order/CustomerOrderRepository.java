@@ -15,10 +15,10 @@ public interface CustomerOrderRepository extends JpaRepository<CustomerOrder, UU
 
     @EntityGraph(attributePaths = {"company", "client"})
     Optional<CustomerOrder> findFirstByCompanyIdAndClientIdAndStatusInOrderByCreatedAtDesc(
-        UUID companyId, UUID clientId, Collection<CustomerOrderStatus> statuses);
+            UUID companyId, UUID clientId, Collection<CustomerOrderStatus> statuses);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select o from CustomerOrder o left join fetch o.client left join fetch o.conversionUser where o.id=:id and o.company.id=:companyId")
+    @Query("select o from CustomerOrder o where o.id = :id and o.company.id = :companyId")
     Optional<CustomerOrder> findForUpdate(@Param("id") UUID id, @Param("companyId") UUID companyId);
     java.util.Optional<CustomerOrder> findByIdAndCompanyIdAndClientId(UUID id, UUID companyId, UUID clientId);
 }

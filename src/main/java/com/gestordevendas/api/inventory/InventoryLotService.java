@@ -3,11 +3,14 @@ package com.gestordevendas.api.inventory;
 import com.gestordevendas.api.common.error.ApiException;
 import com.gestordevendas.api.company.Company;
 import com.gestordevendas.api.product.Product;
+import com.gestordevendas.api.product.ProductRepository;
 import com.gestordevendas.api.purchase.Purchase;
 import com.gestordevendas.api.sale.Sale;
+import com.gestordevendas.api.stock.StockMovement;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -19,13 +22,32 @@ public class InventoryLotService {
 
  private final InventoryLotRepository lots;
  private final SaleLotConsumptionRepository consumptions;
+ private final InventoryLotAdjustmentRepository adjustments;
+ private final ProductRepository productRepository;
 
  public InventoryLotService(
          InventoryLotRepository lots,
-         SaleLotConsumptionRepository consumptions
+         SaleLotConsumptionRepository consumptions,
+         InventoryLotAdjustmentRepository adjustments,
+         ProductRepository productRepository
  ) {
   this.lots = lots;
   this.consumptions = consumptions;
+  this.adjustments = adjustments;
+  this.productRepository = productRepository;
+ }
+
+ @Transactional(propagation = Propagation.MANDATORY)
+ public void lockProducts(UUID companyId, Collection<UUID> productIds) {
+  productIds.stream()
+          .distinct()
+          .sorted()
+          .forEach(productId -> productRepository.findForStockUpdate(productId, companyId)
+                  .orElseThrow(() -> new ApiException(
+                          HttpStatus.NOT_FOUND,
+                          "PRODUCT_NOT_FOUND",
+                          "Produto não encontrado."
+                  )));
  }
 
  public void addPurchase(
@@ -49,9 +71,10 @@ public class InventoryLotService {
 
  }
 
+ @Transactional(propagation = Propagation.MANDATORY)
  public void assertPurchaseUntouched(UUID companyId, UUID purchaseId) {
   boolean consumed = lots
-          .findAllByCompanyIdAndPurchaseId(companyId, purchaseId)
+          .findPurchaseLotsLocked(companyId, purchaseId)
           .stream()
           .anyMatch(InventoryLot::consumed);
 
@@ -64,8 +87,9 @@ public class InventoryLotService {
   }
  }
 
+ @Transactional(propagation = Propagation.MANDATORY)
  public void removePurchase(UUID companyId, UUID purchaseId) {
-  var oldLots = lots.findAllByCompanyIdAndPurchaseId(
+  var oldLots = lots.findPurchaseLotsLocked(
           companyId,
           purchaseId
   );
@@ -193,18 +217,22 @@ public class InventoryLotService {
   * transaction as the product balance and its stock movement.
   */
  @Transactional
- public void applyManualAdjustment(Company company, Product product, BigDecimal delta) {
+ public void applyManualAdjustment(Company company, Product product, BigDecimal delta,
+                                   StockMovement movement, String reason) {
   Objects.requireNonNull(delta, "delta");
+  Objects.requireNonNull(movement, "movement");
+  if (delta.signum() == 0) throw new IllegalArgumentException("Ajuste de estoque não pode ser zero.");
   if (delta.signum() > 0) {
-   lots.save(InventoryLot.create(
-           company, product, null, delta, product.getCostPrice(), LocalDate.now()
-   ));
-  } else if (delta.signum() < 0) {
+   InventoryLot lot = lots.save(InventoryLot.create(
+           company, product, null, delta, product.getCostPrice(), LocalDate.now()));
+   adjustments.save(InventoryLotAdjustment.manual(company, product, lot, movement, delta, reason));
+  } else {
    BigDecimal remaining = delta.negate();
    for (var lot : lots.fifo(company.getId(), product.getId())) {
     BigDecimal take = remaining.min(lot.getRemainingQuantity());
     if (take.signum() > 0) {
      lot.consume(take);
+     adjustments.save(InventoryLotAdjustment.manual(company, product, lot, movement, take.negate(), reason));
      remaining = remaining.subtract(take);
     }
     if (remaining.signum() == 0) break;
